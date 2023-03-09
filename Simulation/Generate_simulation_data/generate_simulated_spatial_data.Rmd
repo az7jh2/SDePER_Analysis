@@ -44,7 +44,7 @@ version[['version.string']]
 
 # Load manually cruated STARmap dataset
 
-This **single-cell resolution** spatial transcriptomics dataset contains two independent experiments on **mouse primary visual cortex** ( [publication](https://www.science.org/doi/10.1126/science.aat5691)), and both experiments are included in our analysis. The physical locations and gene expression profiles (raw nUMIs) of the selected cells are manually curated and saved into a R object [`CoarseGrain_Data.rds`](https://github.com/az7jh2/CVAE-GLRM_Analysis/blob/main/Simulation/Generate_simulation_data/CoarseGrain_Data.rds). After loading data, it's a list containing the meta data (in slot `meta`) and gene raw nUMI (in slot `count`)
+This **single-cell resolution** spatial transcriptomics dataset contains two independent experiments on **mouse primary visual cortex** ( [publication](https://www.science.org/doi/10.1126/science.aat5691)), and both experiments are included in our analysis. The physical locations and gene expression profiles (raw nUMIs) of the selected cells are manually curated and saved into a R object [`CoarseGrain_Data.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data/CoarseGrain_Data.rds). After loading data, it's a list containing the meta data (in slot `meta`) and gene raw nUMI (in slot `count`)
 
 ```{r}
 file_name = file.path(home.dir, 'CoarseGrain_Data.rds')
@@ -72,7 +72,7 @@ Columns in meta data:
 * `index`: cell barcode
 * `dat`: 1 or 2, indicating cell is from 1st or 2nd experiment
 * `cluster_name`: cell type annotation
-* `X`, `Y`: physical locations of cells. We manually add a **4500 pixels offset** on `X` coordinate of cells from 1st experiment
+* `X`, `Y`: physical locations (in pixels) of cells. We manually add a **4500 pixels offset** on `X` coordinate of cells from 1st experiment
 
 Number of cells of each select cell type is shown as below
 
@@ -148,7 +148,7 @@ starmap_res = create_grid(meta_data, gene_count, cluster="cluster_name", breaks=
 Locations of cells with grid showing the square pseudo-spots
 
 ```{r, fig.width=6.5, fig.height=7}
-ggplot(meta_data, aes(x=X,y=Y,color=cluster_name)) +
+ggplot(meta_data, aes(x=X, y=Y, color=cluster_name)) +
   geom_point() +
   scale_color_manual(values=my.distinct.colors20) +
   scale_x_continuous(minor_breaks=seq(min(meta_data$X)-grid_l, max(meta_data$X)+grid_l, grid_l)) +
@@ -178,7 +178,7 @@ ggplot() +
 
 We define the neighborhood of a square pseudo-spot contains the adjacent **left**, **right**, **top** and **bottom** pseudo-spot, that is, one pseudo-spot has at most 4 neighbors.
 
-The physical location of pseudo-spots are saved in the column `x` and `y` in dataframe `starmap_res$prop_grid`, we extract them and store into a dataframe named `local_df`
+The physical location (in pixels) of pseudo-spots are saved in the column `x` and `y` in dataframe `starmap_res$prop_grid`, we extract them and store into a dataframe named `local_df`
 
 The generated Adjacency Matrix `A` only contains **1** and **0**, where 1 represents corresponding two pseudo-spots are adjacent spots according to the definition of neighborhood, while value 0 for non-adjacent pseudo-spots. Note **all diagonal entries are 0s**.
 
@@ -226,7 +226,7 @@ for (i in 1:nrow(local_df)) {
 ```
 
 
-plot Adjacency Matrix. Each node is a pseudo-spot, pseudo-spots within neighborhood are connected with edges.
+Plot Adjacency Matrix. Each node is a pseudo-spot, pseudo-spots within neighborhood are connected with edges.
 
 ```{r, fig.width=14, fig.height=14}
 g = graph_from_adjacency_matrix(A, 'undirected', add.colnames = NA, add.rownames = NA)
@@ -241,7 +241,7 @@ plot(g, vertex.size=5, edge.width=4, margin=-0.05)
 
 ## Save nUMI counts of all genes of spatial pseudo-spots
 
-nUMI count of all genes are stored in `starmap_res$spatial_exp`, and rows as genes, columns as pseudo-spots. We transpose this matrix into **rows as pseudo-spots and columns as genes**, then save into file [`sim_spatial_spot_nUMI.csv`](https://github.com/az7jh2/CVAE-GLRM_Analysis/blob/main/Simulation/Generate_simulation_data/sim_spatial_spot_nUMI.csv)
+nUMI count of all genes are stored in `starmap_res$spatial_exp`, and rows as genes, columns as pseudo-spots. We transpose this matrix into **rows as pseudo-spots and columns as genes**, then save into file [`sim_spatial_spot_nUMI.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data/sim_spatial_spot_nUMI.csv)
 
 ```{r}
 to_save = t(starmap_res$spatial_exp)
@@ -253,9 +253,11 @@ print(sprintf('save %d gene nUMIs of %d simulated spatial pseudo-spots into file
 
 ## Save Physical Locations of spatial pseudo-spots
 
-physical locations of all pseudo-spots are stored in `local_df`, and saved into file [`sim_spatial_spot_loc.csv`](https://github.com/az7jh2/CVAE-GLRM_Analysis/blob/main/Simulation/Generate_simulation_data/sim_spatial_spot_loc.csv)
+physical locations of all pseudo-spots are stored in `local_df`, and saved into file [`sim_spatial_spot_loc.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data/sim_spatial_spot_loc.csv)
 
 ```{r}
+local_df$x = floor(local_df$imagecol/500) + 1
+local_df$y = floor(local_df$imagerow/500) + 1
 local_df[1:5, ]
 write.csv(local_df, 'sim_spatial_spot_loc.csv')
 print(sprintf('save Physical Locations of simulated spatial pseudo-spots into file %s', 'sim_spatial_spot_loc.csv'))
@@ -264,7 +266,7 @@ print(sprintf('save Physical Locations of simulated spatial pseudo-spots into fi
 
 ## Save Adjacency Matrix of spatial pseudo-spots
 
-Adjacency Matrix are stored in `A`, and saved into file [`sim_spatial_spot_adjacency_matrix.csv`](https://github.com/az7jh2/CVAE-GLRM_Analysis/blob/main/Simulation/Generate_simulation_data/sim_spatial_spot_adjacency_matrix.csv)
+Adjacency Matrix are stored in `A`, and saved into file [`sim_spatial_spot_adjacency_matrix.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data/sim_spatial_spot_adjacency_matrix.csv)
 
 ```{r}
 A[1:5, 1:5]
@@ -275,7 +277,7 @@ print(sprintf('save Adjacency Matrix of simulated spatial pseudo-spots into file
 
 ## Save True cell type proportions of spatial pseudo-spots
 
-True cell type proportions of simulated spatial pseudo-spots are stored in `starmap_res$prop_grid`, and saved into file [`sim_spatial_spot_true_prop.csv`](https://github.com/az7jh2/CVAE-GLRM_Analysis/blob/main/Simulation/Generate_simulation_data/sim_spatial_spot_true_prop.csv)
+True cell type proportions of simulated spatial pseudo-spots are stored in `starmap_res$prop_grid`, and saved into file [`sim_spatial_spot_true_prop.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data/sim_spatial_spot_true_prop.csv)
 
 ```{r}
 to_save = starmap_res$prop_grid
@@ -289,7 +291,7 @@ print(sprintf('save True cell type proportions of simulated spatial pseudo-spots
 
 ## Save nUMI counts of STARmap cells
 
-nUMI count of all cells in STARmap dataset are stored in `gene_count` with **rows as cells and columns as genes**, and saved into file [`STARmap_cell_nUMI.csv`](https://github.com/az7jh2/CVAE-GLRM_Analysis/blob/main/Simulation/Analysis_simulation_data/Scenario_1/No_platform_effect/STARmap_cell_nUMI.csv)
+nUMI count of all cells in STARmap dataset are stored in `gene_count` with **rows as cells and columns as genes**, and saved into file [`STARmap_cell_nUMI.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/STARmap_cell_nUMI.csv)
 
 ```{r}
 gene_count[1:5, 1:5]
@@ -300,7 +302,7 @@ print(sprintf('save %d gene nUMIs of %d STARmap cells into file %s', ncol(gene_c
 
 ## Save cell type annotation of STARmap cells
 
-Cell type annotation of all cells in STARmap dataset are stored in `meta_data$cluster_name`, and saved into file [`STARmap_cell_celltype.csv`](https://github.com/az7jh2/CVAE-GLRM_Analysis/blob/main/Simulation/Analysis_simulation_data/Scenario_1/No_platform_effect/STARmap_cell_celltype.csv)
+Cell type annotation of all cells in STARmap dataset are stored in `meta_data$cluster_name`, and saved into file [`STARmap_cell_celltype.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/STARmap_cell_celltype.csv)
 
 ```{r}
 to_save = meta_data['cluster_name']
