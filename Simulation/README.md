@@ -128,6 +128,7 @@ We only use cells from **Primary Visual Cortex** (column `source=Primary Visual 
     </tbody>
     </table>
 </details>
+
 After selecting cells by cell types, we **filter out cells without expressions** in file `GSE115746_cells_exon_counts.csv.gz`.  **No further filtering on genes or cells** is performed. Finally we get **11,835 scRNA-seq cells** of the selected 12 cell types, and the manually curated cell type annotation of these cells is in [ref_scRNA_cell_celltype.csv](Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/ref_scRNA_cell_celltype.csv).
 
 ## 3. Cell type deconvolution analysis
