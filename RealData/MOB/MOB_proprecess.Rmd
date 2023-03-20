@@ -1,0 +1,260 @@
+---
+title: "Preprocess MOB data for cell type deconvolution"
+author: "Ningshan Li & Jiayi Zhao"
+date: "2023/03/19"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+library(dplyr)
+library(ggplot2)
+library(igraph)
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/SharedFolder/ToHost/CVAE-GLRM_Analysis/RealData/MOB'
+
+
+my.distinct.colors20 = c("#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe", "#008080", "#9a6324", "#800000", "#aaffc3", "#808000", "#000075", "#808080", "#e6beff", "#ffd8b1", "#000000")
+
+my.distinct.colors40 = c("#00ff00","#ff4500","#00ced1","#556b2f","#a0522d","#8b0000","#808000","#483d8b","#008000","#008080","#4682b4","#000080","#9acd32","#daa520","#7f007f","#8fbc8f","#b03060","#d2b48c","#696969","#ff8c00","#00ff7f","#dc143c","#f4a460","#0000ff","#a020f0","#adff2f","#ff00ff","#1e90ff","#f0e68c","#fa8072","#ffff54","#dda0dd","#87ceeb","#7b68ee","#ee82ee","#98fb98","#7fffd4","#ffb6c1","#dcdcdc","#000000")
+```
+
+
+In this R Notebook we preprocess spatial and corresponding reference scRNA-seq data of mouse olfactory bulb (**MOB**) for cell type deconvolution.
+
+1. **Spatial data preprocessing**:
+
+    1.1 Input original data files
+    
+    * Raw nUMI of spatial spots: [Rep12_MOB_count_matrix-1.tsv](https://www.spatialresearch.org/wp-content/uploads/2016/07/Rep12_MOB_count_matrix-1.tsv), downloaded from [Spatial Research website](https://www.spatialresearch.org/resources-published-datasets/doi-10-1126science-aaf2403/), and sample **MOB Replicate 12** is selected for analysis.
+    
+    1.2 Output data files for cell type deconvolution
+    
+    * Raw nUMI of spatial spots: [MOB_spatial_spot_nUMI.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/MOB/MOB_spatial_spot_nUMI.csv). **No filtering on spots or genes**, i.e. all spots and genes are preserved.
+    * Physical location of spatial spots: [MOB_spatial_spot_loc.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/MOB/MOB_spatial_spot_loc.csv). Directly extract the spatial `x` and `y` coordinates from spot names, followed by **rounding to nearest integers**.
+    * Adjacency Matrix: [MOB_spatial_spot_adjacency_matrix.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/MOB/MOB_spatial_spot_adjacency_matrix.csv). Spots within neighborhood are adjacent **left**, **right**, **top** and **bottom** spots.
+
+
+2. **Reference scRNA-seq data preprocessing**:
+
+    2.1 Input original data files
+    
+    scRNA-seq data are downloaded from [GSE121891](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE121891).
+    
+    * Raw nUMI of all 52,549 single cells:  [GSE121891_OB_6_runs.raw.dge.csv.gz](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE121891&format=file&file=GSE121891%5FOB%5F6%5Fruns%2Eraw%2Edge%2Ecsv%2Egz) 
+    
+    * Meta data for 21,746 **Neurons** cells: [GSE121891_Figure_2_metadata.txt.gz](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE121891&format=file&file=GSE121891%5FFigure%5F2%5Fmetadata%2Etxt%2Egz)
+    
+    2.2 Output data files for cell type deconvolution
+    
+    * Raw nUMI of 12,801 cells with selected 5 cell types and 18,560 genes: [MOB_ref_scRNA_cell_nUMI.csv.gz](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/MOB/MOB_ref_scRNA_cell_nUMI.csv.gz). **NO filtering on cells or genes**, i.e. all genes and cells with those 5 cell types are included for analysis.
+    
+    * Cell type annotation for those 12,801 cells: [MOB_ref_scRNA_cell_celltype.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/MOB/MOB_ref_scRNA_cell_celltype.csv)
+
+
+
+# Version
+
+```{r}
+version[['version.string']]
+```
+
+
+# Proprocess MOB spatial dataset
+
+## Read original data file [Rep12_MOB_count_matrix-1.tsv](https://www.spatialresearch.org/wp-content/uploads/2016/07/Rep12_MOB_count_matrix-1.tsv)
+
+```{r}
+file_name = file.path(home.dir, 'Rep12_MOB_count_matrix-1.tsv')
+org_data = read.csv(file_name, sep = '\t', check.names = F, header = T, row.names = 1)
+print(sprintf('load data from %s', file_name))
+print(sprintf('spots: %d; genes: %d', nrow(org_data), ncol(org_data)))
+org_data[1:5, 1:5]
+```
+
+
+## Save files for deconvolution
+
+### Spatial spot nUMI
+
+**No filtering on spots or genes**, directly save all spots and genes into file [MOB_spatial_spot_nUMI.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/MOB/MOB_spatial_spot_nUMI.csv). **Rows as spatial spots and columns as genes**.
+
+```{r}
+write.csv(org_data, 'MOB_spatial_spot_nUMI.csv')
+print(sprintf('save %d gene nUMIs of %d spatial spots into file %s', ncol(org_data), nrow(org_data), 'MOB_spatial_spot_nUMI.csv'))
+```
+
+
+### Physical Locations of spatial spots
+
+Directly extract the spatial `x` and `y` coordinates from spot names, followed by **rounding to nearest integers**, then saved into file [MOB_spatial_spot_loc.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/MOB/MOB_spatial_spot_loc.csv).
+
+
+```{r}
+local_df = data.frame(names = row.names(org_data), row.names = row.names(org_data))
+local_df = local_df %>%
+  tidyr::separate_wider_delim(names, 'x', names = c('x', 'y'))
+local_df = as.data.frame(local_df)
+row.names(local_df) = row.names(org_data)
+
+local_df['x'] = round(as.numeric(local_df$x))
+local_df['y'] = round(as.numeric(local_df$y))
+
+local_df[1:5, ]
+
+write.csv(local_df, 'MOB_spatial_spot_loc.csv')
+print(sprintf('save Physical Locations of spatial spots into file %s', 'MOB_spatial_spot_loc.csv'))
+```
+
+
+### Adjacency Matrix of spatial spots
+
+We define the neighborhood of a spatial spot contains the adjacent **left**, **right**, **top** and **bottom** spot, that is, one spot has at most 4 neighbors.
+
+The generated Adjacency Matrix `A` only contains **1** and **0**, where 1 represents corresponding two spots are adjacent spots according to the definition of neighborhood, while value 0 for non-adjacent spots. Note **all diagonal entries are 0s**.
+
+Adjacency Matrix are saved into file [MOB_spatial_spot_adjacency_matrix.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/MOB/MOB_spatial_spot_adjacency_matrix.csv).
+
+```{r}
+getNeighbour = function(array_row, array_col) {
+  # based on the (row, col) of one spot, return the (row, col) of all 4 neighbours
+  return(list(c(array_row-1, array_col),
+              c(array_row+1, array_col),
+              c(array_row+0, array_col-1),
+              c(array_row+0, array_col+1)))
+}
+
+# adjacency matrix
+A = matrix(0, nrow = nrow(local_df), ncol = nrow(local_df))
+row.names(A) = rownames(local_df)
+colnames(A) = rownames(local_df)
+for (i in 1:nrow(local_df)) {
+  barcode = rownames(local_df)[i]
+  array_row = local_df[i, 'y']
+  array_col = local_df[i, 'x']
+  
+  # get neighbors
+  neighbours = getNeighbour(array_row, array_col)
+  
+  # fill the adjacency matrix
+  for (this.vec in neighbours) {
+    tmp.p = rownames(local_df[local_df$y==this.vec[1] & local_df$x==this.vec[2], ])
+    
+    if (length(tmp.p) >= 1) {
+      # target spots have neighbors in selected spots
+      for (neigh.barcode in tmp.p) {
+        A[barcode, neigh.barcode] = 1
+      }
+    }
+  }
+}
+
+A[1:5, 1:5]
+write.csv(A, 'MOB_spatial_spot_adjacency_matrix.csv')
+print(sprintf('save Adjacency Matrix of spatial spots into file %s', 'MOB_spatial_spot_adjacency_matrix.csv'))
+```
+
+Plot Adjacency Matrix. Each node is spot, spots within neighborhood are connected with edges.
+
+```{r, fig.width=12, fig.height=12}
+g = graph_from_adjacency_matrix(A, 'undirected', add.colnames = NA, add.rownames = NA)
+# manually set nodes x and y coordinates
+vertex_attr(g, name = 'x') = local_df$x
+vertex_attr(g, name = 'y') = local_df$y
+plot(g, vertex.size=5, edge.width=4, margin=-0.05)
+```
+
+
+# Proprocess reference scRNA-seq data
+
+## Read and preprocess scRNA-seq meta data
+
+Original meta data file is [GSE121891_Figure_2_metadata.txt.gz](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE121891&format=file&file=GSE121891%5FFigure%5F2%5Fmetadata%2Etxt%2Egz) downloaded from [GSE121891](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE121891). It contains meta data of 21,746 **Neurons** cells from mouse olfactory bulb. The cell type annotation is stored in column `FinalIds`, which includes total 18 distinct annotations. We selected 5 cell types and combine the subtypes as below:
+
+1. granule cells (**GC**): "n03-GC-1" + "n07-GC-2" + "n09-GC-3" + "n10-GC-4" + "n11-GC-5" + "n12-GC-6" + "n14-GC-7"
+2. olfactory sensory neurons (**OSNs**): "n01-OSNs"
+3. periglomerular cells (**PGC**): "n02-PGC-1" + "n05-PGC-2" + "n08-PGC-3"
+4. mitral and tufted cells (**M/TC**): "n15-M/TC-1" + "n16-M/TC-2" + "n17-M/TC-3"
+5. external plexiform layer interneurons (**EPL-IN**): "n18-EPL-IN"
+
+3 Subtypes "n04-Immature", "n06-Transition" and "n13-AstrocyteLike" are discarded.
+
+**NO further filtering on cells**, i.e. all 12,801 cells of these 5 selected cell types will be used for cell type deconvolution.
+
+```{r}
+file_name = file.path(home.dir, 'GSE121891_Figure_2_metadata.txt.gz')
+ref_meta = read.csv(gzfile(file_name), sep='\t', check.names = F, header = T, row.names = 1)
+print(sprintf('load data from %s', file_name))
+print(sprintf('total %d cells with distinct %d cell type annotations', nrow(ref_meta), length(unique(ref_meta$FinalIds))))
+
+# remove unwanted 3 subtypes
+ref_meta = ref_meta[ref_meta$FinalIds %notin% c("n04-Immature", "n06-Transition", "n13-AstrocyteLike"), ]
+print(sprintf('remove 3 cell subtype annotations, remain %d cells', nrow(ref_meta)))
+
+# combine subtypes
+ref_meta$celltype = ""
+ref_meta[ref_meta$FinalIds %in% c("n03-GC-1", "n07-GC-2", "n09-GC-3", "n10-GC-4", "n11-GC-5", "n12-GC-6", "n14-GC-7"), "celltype"] = "GC"
+ref_meta[ref_meta$FinalIds == "n01-OSNs", "celltype"] = "OSNs"
+ref_meta[ref_meta$FinalIds %in% c("n02-PGC-1", "n05-PGC-2", "n08-PGC-3"), "celltype"] = "PGC"
+ref_meta[ref_meta$FinalIds %in% c("n15-M/TC-1", "n16-M/TC-2", "n17-M/TC-3"), "celltype"] = "M/TC"
+ref_meta[ref_meta$FinalIds == "n18-EPL-IN", "celltype"] = "EPL-IN"
+
+table(ref_meta$celltype)
+
+ref_meta[1:5, c('FinalIds', 'celltype')]
+```
+
+
+Save cell type annotation to file [MOB_ref_scRNA_cell_celltype.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/MOB/MOB_ref_scRNA_cell_celltype.csv)
+
+```{r}
+write.csv(ref_meta[, 'celltype', drop=F], 'MOB_ref_scRNA_cell_celltype.csv')
+print(sprintf('save cell type annotation of reference scRNA-seq cells into file %s', 'MOB_ref_scRNA_cell_celltype.csv'))
+```
+
+
+## Read and preprocess scRNA-seq nUMI data
+
+Original gene nUMI count data file is [GSE121891_OB_6_runs.raw.dge.csv.gz](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE121891&format=file&file=GSE121891%5FOB%5F6%5Fruns%2Eraw%2Edge%2Ecsv%2Egz) downloaded from [GSE121891](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE121891). It contains total 52,549 cells and 18,560 genes.
+
+We just selected 12,801 cells of the 5 selected cell types by barcodes, and discard other cells. **NO filtering on genes**, i.e. all 18,560 genes will be used for cell type deconvolution.
+
+```{r}
+file_name = file.path(home.dir, 'GSE121891_OB_6_runs.raw.dge.csv.gz')
+ref_data = data.table::fread(file_name, sep = ",", check.names = FALSE, select = c('V1', row.names(ref_meta)))
+gene_names = ref_data$V1
+
+# transpose it
+ref_data = as.data.frame(data.table::transpose(ref_data %>%
+  select(row.names(ref_meta))))
+
+row.names(ref_data) = row.names(ref_meta)
+colnames(ref_data) = gene_names
+
+print(sprintf('load data from %s', file_name))
+print(sprintf('cells: %d; genes: %d', nrow(ref_data), ncol(ref_data)))
+ref_data[1:5, 1:5]
+```
+
+Save scRNA-seq nUMI matrix to file [MOB_ref_scRNA_cell_nUMI.csv.gz](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/MOB/MOB_ref_scRNA_cell_nUMI.csv.gz)
+
+```{r}
+data.table::fwrite(ref_data, 'MOB_ref_scRNA_cell_nUMI.csv.gz', row.names = T)
+print(sprintf('save nUMI matrix of reference scRNA-seq cells into gzip compressed file %s', 'MOB_ref_scRNA_cell_nUMI.csv.gz'))
+```
+
+
