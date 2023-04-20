@@ -1,0 +1,280 @@
+---
+title: "Preprocess HER2+ Brease Cancer data for cell type deconvolution"
+author: "Ningshan Li & Nating Wang & Yunqing Liu"
+date: "2023/04/19"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+library(dplyr)
+library(ggplot2)
+library(igraph)
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/SharedFolder/ToHost/CVAE-GLRM_Analysis/RealData/Breast_Cancer'
+
+
+my.distinct.colors20 = c("#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe", "#008080", "#9a6324", "#800000", "#aaffc3", "#808000", "#000075", "#808080", "#e6beff", "#ffd8b1", "#000000")
+
+my.distinct.colors40 = c("#00ff00","#ff4500","#00ced1","#556b2f","#a0522d","#8b0000","#808000","#483d8b","#008000","#008080","#4682b4","#000080","#9acd32","#daa520","#7f007f","#8fbc8f","#b03060","#d2b48c","#696969","#ff8c00","#00ff7f","#dc143c","#f4a460","#0000ff","#a020f0","#adff2f","#ff00ff","#1e90ff","#f0e68c","#fa8072","#ffff54","#dda0dd","#87ceeb","#7b68ee","#ee82ee","#98fb98","#7fffd4","#ffb6c1","#dcdcdc","#000000")
+```
+
+
+In this R Notebook we preprocess spatial and corresponding reference scRNA-seq data of human **HER2+ Breast Cancer** for cell type deconvolution.
+
+1. **Spatial data preprocessing**:
+
+    1.1 Input original data files
+    
+    * Raw nUMI of spatial spots: `H1.tsv.gz` is from zipped file [count-matrices.zip](https://zenodo.org/record/4751624/files/count-matrices.zip?download=1) downloaded from [zenodo.4751624](https://zenodo.org/record/4751624), and this **first section from patient H** is selected for analysis.
+    
+    1.2 Output data files for cell type deconvolution
+    
+    * Raw nUMI of spatial spots: [Breast_Cancer_spatial_spot_nUMI.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/Breast_Cancer/Breast_Cancer_spatial_spot_nUMI.csv). **No filtering on spots or genes**, i.e. all spots and genes are preserved.
+    * Physical location of spatial spots: [Breast_Cancer_spatial_spot_loc.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/Breast_Cancer/Breast_Cancer_spatial_spot_loc.csv). The spatial `x` and `y` coordinates are directly extracted from spot names.
+    * Adjacency Matrix: [Breast_Cancer_spatial_spot_adjacency_matrix.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/Breast_Cancer/Breast_Cancer_spatial_spot_adjacency_matrix.csv). Spots within neighborhood are adjacent **left**, **right**, **top** and **bottom** spots.
+
+
+2. **Reference scRNA-seq data preprocessing**:
+
+    2.1 Input original data files
+    
+    scRNA-seq data [GSE176078_Wu_etal_2021_BRCA_scRNASeq.tar.gz](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE176078&format=file&file=GSE176078%5FWu%5Fetal%5F2021%5FBRCA%5FscRNASeq%2Etar%2Egz) are downloaded from [GSE176078](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE176078). This compressed file contains 4 files:
+    
+    * `count_matrix_sparse.mtx`, `count_matrix_barcodes.tsv` and `count_matrix_genes.tsv`: Raw nUMI of all 100,064 cells and 29,733 genes
+    
+    * `metadata.csv`: meta data of all 100,064 cells
+    
+    2.2 Output data files for cell type deconvolution
+    
+    We select **19,311 HER2+ cells**. **NO filtering on genes**, i.e. all genes are included for analysis.
+    
+    * Raw nUMI of 19,311 cells with 9 cell types and 29,733 genes: [Breast_Cancer_ref_scRNA_cell_nUMI.csv.gz](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/Breast_Cancer/Breast_Cancer_ref_scRNA_cell_nUMI.csv.gz).
+    
+    * Cell type annotation for those 19,311 cells: [Breast_Cancer_ref_scRNA_cell_celltype.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/Breast_Cancer/Breast_Cancer_ref_scRNA_cell_celltype.csv)..
+
+
+
+# Version
+
+```{r}
+version[['version.string']]
+```
+
+
+# Proprocess Breast Cancer spatial dataset
+
+## Read original data file `H1.tsv.gz`
+
+```{r}
+file_name = file.path(home.dir, 'H1.tsv.gz')
+org_data = data.table::fread(file_name, sep = "\t", check.names = FALSE)
+print(sprintf('load data from %s', file_name))
+
+org_data = as.data.frame(org_data)
+# extract first column as row name
+row.names(org_data) = org_data$V1
+org_data = org_data[, 2:ncol(org_data)]
+
+print(sprintf('spots: %d; genes: %d', nrow(org_data), ncol(org_data)))
+org_data[1:5, 1:5]
+```
+
+
+
+## Save files for deconvolution
+
+### Spatial spot nUMI
+
+**No filtering on spots or genes**, directly save all spots and genes into file [Breast_Cancer_spatial_spot_nUMI.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/Breast_Cancer/Breast_Cancer_spatial_spot_nUMI.csv). **Rows as spatial spots and columns as genes**.
+
+```{r}
+write.csv(org_data, 'Breast_Cancer_spatial_spot_nUMI.csv')
+print(sprintf('save %d gene nUMIs of %d spatial spots into file %s', ncol(org_data), nrow(org_data), 'Breast_Cancer_spatial_spot_nUMI.csv'))
+```
+
+
+### Physical Locations of spatial spots
+
+Directly extract the spatial `x` and `y` coordinates from spot names, then save it into file [Breast_Cancer_spatial_spot_loc.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/Breast_Cancer/Breast_Cancer_spatial_spot_loc.csv).
+
+
+```{r}
+local_df = data.frame(names = row.names(org_data), row.names = row.names(org_data))
+local_df = local_df %>%
+  tidyr::separate_wider_delim(names, 'x', names = c('x', 'y'))
+local_df = as.data.frame(local_df)
+row.names(local_df) = row.names(org_data)
+
+local_df['x'] = as.numeric(local_df$x)
+local_df['y'] = as.numeric(local_df$y)
+
+local_df[1:5, ]
+
+write.csv(local_df, 'Breast_Cancer_spatial_spot_loc.csv')
+print(sprintf('save Physical Locations of spatial spots into file %s', 'Breast_Cancer_spatial_spot_loc.csv'))
+```
+
+
+### Adjacency Matrix of spatial spots
+
+We define the neighborhood of a spatial spot contains the adjacent **left**, **right**, **top** and **bottom** spot, that is, one spot has at most 4 neighbors.
+
+The generated Adjacency Matrix `A` only contains **1** and **0**, where 1 represents corresponding two spots are adjacent spots according to the definition of neighborhood, while value 0 for non-adjacent spots. Note **all diagonal entries are 0s**.
+
+Adjacency Matrix are saved into file [Breast_Cancer_spatial_spot_adjacency_matrix.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/Breast_Cancer/Breast_Cancer_spatial_spot_adjacency_matrix.csv).
+
+```{r}
+getNeighbour = function(array_row, array_col) {
+  # based on the (row, col) of one spot, return the (row, col) of all 4 neighbours
+  return(list(c(array_row-1, array_col),
+              c(array_row+1, array_col),
+              c(array_row+0, array_col-1),
+              c(array_row+0, array_col+1)))
+}
+
+# adjacency matrix
+A = matrix(0, nrow = nrow(local_df), ncol = nrow(local_df))
+row.names(A) = rownames(local_df)
+colnames(A) = rownames(local_df)
+for (i in 1:nrow(local_df)) {
+  barcode = rownames(local_df)[i]
+  array_row = local_df[i, 'y']
+  array_col = local_df[i, 'x']
+  
+  # get neighbors
+  neighbours = getNeighbour(array_row, array_col)
+  
+  # fill the adjacency matrix
+  for (this.vec in neighbours) {
+    tmp.p = rownames(local_df[local_df$y==this.vec[1] & local_df$x==this.vec[2], ])
+    
+    if (length(tmp.p) >= 1) {
+      # target spots have neighbors in selected spots
+      for (neigh.barcode in tmp.p) {
+        A[barcode, neigh.barcode] = 1
+      }
+    }
+  }
+}
+
+A[1:5, 1:5]
+write.csv(A, 'Breast_Cancer_spatial_spot_adjacency_matrix.csv')
+print(sprintf('save Adjacency Matrix of spatial spots into file %s', 'Breast_Cancer_spatial_spot_adjacency_matrix.csv'))
+```
+
+Plot Adjacency Matrix. Each node is spot, spots within neighborhood are connected with edges.
+
+Note **multiply the y coordinated with -1** to match the figure with H&E staining image
+
+```{r, fig.width=12, fig.height=12}
+g = graph_from_adjacency_matrix(A, 'undirected', add.colnames = NA, add.rownames = NA)
+# manually set nodes x and y coordinates
+vertex_attr(g, name = 'x') = local_df$x
+vertex_attr(g, name = 'y') = -(local_df$y)
+plot(g, vertex.size=5, edge.width=4, margin=-0.05)
+```
+
+
+# Preprocess reference scRNA-seq data
+
+## Read and preprocess scRNA-seq meta data
+
+Original meta data file `metadata.csv` is in the compressed file [GSE176078_Wu_etal_2021_BRCA_scRNASeq.tar.gz](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE176078&format=file&file=GSE176078%5FWu%5Fetal%5F2021%5FBRCA%5FscRNASeq%2Etar%2Egz) downloaded from [GSE176078](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE176078).
+
+It contains meta data of 100,064 cells from human breast cancer tissue. We select cells from **HER2+** subjects (`subtype=HER2+`), and **19,311 cells** from 5 subjects are selected.
+
+The cell type annotation is stored in column `celltype_major`, which includes total 9 distinct annotations.
+
+
+```{r}
+file_name = file.path(home.dir, 'Wu_etal_2021_BRCA_scRNASeq', 'metadata.csv')
+ref_meta = read.csv(file_name, sep=',', check.names = F, header = T, row.names = 1)
+print(sprintf('load data from %s', file_name))
+print(sprintf('total %d cells with distinct %d cell type annotations', nrow(ref_meta), length(unique(ref_meta$celltype_major))))
+
+# select HER2+ cells
+ref_meta = ref_meta %>%
+  filter(subtype == 'HER2+')
+print(sprintf('remain %d HER2+ cells', nrow(ref_meta)))
+
+table(ref_meta$orig.ident)
+
+count = as.matrix(table(ref_meta$celltype_major))
+colnames(count) = 'num'
+Matrix::t(count)
+
+ref_meta[1:5, 'celltype_major', drop=F]
+```
+
+
+Save cell type annotation of selected cells to file [Breast_Cancer_ref_scRNA_cell_celltype.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/Breast_Cancer/Breast_Cancer_ref_scRNA_cell_celltype.csv).
+
+```{r}
+colnames(ref_meta)[colnames(ref_meta)=='celltype_major'] = 'celltype'
+write.csv(ref_meta[, 'celltype', drop=F], 'Breast_Cancer_ref_scRNA_cell_celltype.csv')
+print(sprintf('save cell type annotation of reference scRNA-seq cells into file %s', 'Breast_Cancer_ref_scRNA_cell_celltype.csv'))
+```
+
+
+## Read and preprocess scRNA-seq nUMI data
+
+Original gene nUMI count data file `count_matrix_sparse.mtx`, `count_matrix_barcodes.tsv` and `count_matrix_genes.tsv` are in the compressed file [GSE176078_Wu_etal_2021_BRCA_scRNASeq.tar.gz](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE176078&format=file&file=GSE176078%5FWu%5Fetal%5F2021%5FBRCA%5FscRNASeq%2Etar%2Egz) downloaded from [GSE176078](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE176078). It contains total 100,064 cells and 29,733 genes.
+
+We just selected 19,311 HER2+ cells by barcodes, and discard other cells. **NO filtering on genes**, i.e. all 29,733 genes will be used for cell type deconvolution.
+
+```{r}
+# https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/output/matrices
+
+barcode.path = file.path(home.dir, 'Wu_etal_2021_BRCA_scRNASeq', "count_matrix_barcodes.tsv")
+features.path = file.path(home.dir, 'Wu_etal_2021_BRCA_scRNASeq', "count_matrix_genes.tsv")
+matrix.path = file.path(home.dir, 'Wu_etal_2021_BRCA_scRNASeq', "count_matrix_sparse.mtx")
+
+mat = Matrix::readMM(file = matrix.path)
+feature.names = read.delim(features.path,
+                           header = FALSE,
+                           stringsAsFactors = FALSE)
+barcode.names = read.delim(barcode.path,
+                           header = FALSE,
+                           stringsAsFactors = FALSE)
+colnames(mat) = barcode.names$V1
+row.names(mat) = feature.names$V1
+
+print(sprintf('load data from %s', matrix.path))
+print(sprintf('total cells: %d; genes: %d', ncol(mat), nrow(mat)))
+
+
+# select HER2+ cells
+mat = mat[, row.names(ref_meta)]
+print(sprintf('select cells: %d; genes: %d', ncol(mat), nrow(mat)))
+
+# transpose it
+mat = Matrix::t(mat)
+```
+
+
+Save scRNA-seq nUMI matrix to file [Breast_Cancer_ref_scRNA_cell_nUMI.csv.gz](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/Breast_Cancer/Breast_Cancer_ref_scRNA_cell_nUMI.csv.gz)
+
+```{r}
+ref_data = as.data.frame(as.matrix(mat), check.names=F)
+ref_data[1:5, 1:5]
+
+data.table::fwrite(ref_data, 'Breast_Cancer_ref_scRNA_cell_nUMI.csv.gz', row.names = T)
+print(sprintf('save nUMI matrix of reference scRNA-seq cells into gzip compressed file %s', 'Breast_Cancer_ref_scRNA_cell_nUMI.csv.gz'))
+```
+
+
