@@ -76,7 +76,7 @@ version[['version.string']]
 ```
 
 
-# Proprocess Melanoma spatial dataset
+# Preprocess Melanoma spatial dataset
 
 ## Read original data file `ST_mel1_rep2_counts.tsv`
 

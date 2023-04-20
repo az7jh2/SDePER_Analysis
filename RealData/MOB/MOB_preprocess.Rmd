@@ -74,7 +74,7 @@ version[['version.string']]
 ```
 
 
-# Proprocess MOB spatial dataset
+# Preprocess MOB spatial dataset
 
 ## Read original data file [Rep12_MOB_count_matrix-1.tsv](https://www.spatialresearch.org/wp-content/uploads/2016/07/Rep12_MOB_count_matrix-1.tsv)
 
