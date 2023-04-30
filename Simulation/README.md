@@ -139,14 +139,14 @@ We run SDePER in **3 different scenarios**, and the simulated spatial transcript
 
 Single cells with the **matched 12 cell types** are included as reference.
 
-#### 3.1.1 Using spatial data as reference for deconvolution
+#### 3.1.1 Using spatial data as reference for deconvolution (internal reference)
 
 Single cells from the STARmap dataset are used as reference for deconvolution, therefore it's **free of platform effect**.
 
 * **NO** platform effect removal: see [S1_ref_spatial_SDePER_NO_platform_effect_removal.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_NO_platform_effect_removal.ipynb)
 * **WITH** platform effect removal: see [S1_ref_spatial_SDePER_WITH_platform_effect_removal.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_WITH_platform_effect_removal.ipynb)
 
-#### 3.1.2 Using scRNA-seq data as reference for deconvolution
+#### 3.1.2 Using scRNA-seq data as reference for deconvolution (external reference)
 
 Single cells from the scRNA-seq dataset are used as reference for deconvolution, therefore **platform effect exists**.
 
