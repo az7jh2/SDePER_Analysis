@@ -1,0 +1,356 @@
+---
+title: "Preprocess IPF data for cell type deconvolution"
+author: "Ningshan Li & Jiayi Zhao & Yunqing Liu"
+date: "2023/04/21"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+library(dplyr)
+library(ggplot2)
+library(igraph)
+library(Seurat)
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/SharedFolder/ToHost/CVAE-GLRM_Analysis/RealData/IPF'
+
+
+my.distinct.colors20 = c("#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe", "#008080", "#9a6324", "#800000", "#aaffc3", "#808000", "#000075", "#808080", "#e6beff", "#ffd8b1", "#000000")
+
+my.distinct.colors40 = c("#00ff00","#ff4500","#00ced1","#556b2f","#a0522d","#8b0000","#808000","#483d8b","#008000","#008080","#4682b4","#000080","#9acd32","#daa520","#7f007f","#8fbc8f","#b03060","#d2b48c","#696969","#ff8c00","#00ff7f","#dc143c","#f4a460","#0000ff","#a020f0","#adff2f","#ff00ff","#1e90ff","#f0e68c","#fa8072","#ffff54","#dda0dd","#87ceeb","#7b68ee","#ee82ee","#98fb98","#7fffd4","#ffb6c1","#dcdcdc","#000000")
+```
+
+
+In this R Notebook we preprocess spatial and corresponding reference scRNA-seq data of human **Idiopathic pulmonary fibrosis (IPF) lung** for cell type deconvolution.
+
+1. **Spatial data preprocessing**:
+
+    1.1 Input original data files
+    
+    Here we provide a R rds file [IPF_spatial_data.rds](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_spatial_data.rds) containing the **`Seurat` object** of the IPF lung sample we are working on. The `Seurat` object contains **raw nUMI** and **physical locations** of spatial spots, and a thumbnail of **tissue image**. In total 4,992 spatial spots and 60,651 genes are included in the raw data. 
+    
+    The raw data and tissue image have also been uploaded to [GSE231385](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE231385).
+    
+    1.2 Output data files for cell type deconvolution
+    
+    We filter out the **spatial spots NOT covered by the tissue** and the **genes NOT expressed in any tissue coverd spots**, remaining 3,532 spots and 32,078 genes.
+
+    * Raw nUMI of spatial spots: [IPF_spatial_spot_nUMI.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_spatial_spot_nUMI.csv).
+    * Physical location of spatial spots: [IPF_spatial_spot_loc.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_spatial_spot_loc.csv). The `x` and `y` coordinates of spatial spots are from `col` and `row`, respectively.
+    * Adjacency Matrix: [IPF_spatial_spot_adjacency_matrix.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_spatial_spot_adjacency_matrix.csv). Spots within neighborhood are adjacent **left**, **right**, **top** and **bottom** spots, plus **the second closest spots at left and right**.
+
+
+2. **Reference scRNA-seq data preprocessing**:
+
+    2.1 Input original data files
+    
+    raw nUMI count matrix and cell type annotation of scRNA-seq data can be downloaded from [GSE136831](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE136831), including 312,928 cells and 45,947 genes.
+    
+    Here we only use cells from one IPF subject **225I**, and provide a R rds file [IPF_scRNA_data.rds](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_scRNA_data.rds) containing a **`Seurat` object** with 12,070 cells and 60,651 genes. To process the scRNA-seq data of this subject, we use [STARsolo](https://github.com/alexdobin/STAR) to map the reads to reference genome (GRCh38), and refined the cell type annotation. So both the nUMI count matrix and cell type annotation are different with the published version in [GSE136831](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE136831).
+    
+    Note that we set all entries of the sparse matrix in `data` slot as **0** to decrease the file size.
+    
+    2.2 Output data files for cell type deconvolution
+    
+    We select **26 major cell types** to work on, and filter out **cells of other cell types** and **genes NOT expressed in any selected cells**, remaining 11,227 cells and 35,483 genes.
+    
+    * Raw nUMI of 11,227 cells with 26 cell types and 35,483 genes: [IPF_ref_scRNA_cell_nUMI.csv.gz](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_ref_scRNA_cell_nUMI.csv.gz).
+    
+    * Cell type annotation for those 11,227 cells: [IPF_ref_scRNA_cell_celltype.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_ref_scRNA_cell_celltype.csv).
+    
+    * We also manually select 2,534 cell type specific marker genes from the filtered data. To use it in SDePER cell type deconvolution, we create a 26 * 2,534 matrix with **all entries are 0**, and set the selected 26 cell types as row names and 2,534 marker genes as column names. This cell type maker gene expression profile is saved in [IPF_selected_2534_celltype_markers.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_selected_2534_celltype_markers.csv).
+
+
+
+# Version
+
+```{r}
+version[['version.string']]
+print(sprintf('Seurat package version: %s', packageVersion('Seurat')))
+```
+
+
+# Preprocess IPF spatial dataset
+
+## Read original data file [IPF_spatial_data.rds](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_spatial_data.rds)
+
+```{r}
+file_name = file.path(home.dir, 'IPF_spatial_data.rds')
+org_data = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+
+print(sprintf('spots: %d; genes: %d', ncol(org_data), nrow(org_data)))
+```
+
+
+## Extract spots covered by tissue
+
+```{r}
+# add tissue indicator into meta data
+total_spots = ncol(org_data)
+tmp.df = org_data@images[[1]]@coordinates
+tmp.df = tmp.df[colnames(org_data), ]
+stopifnot(nrow(tmp.df) == ncol(org_data))
+org_data[['tissue']] = tmp.df$tissue
+
+# subset spots covered by tissue
+org_data = subset(org_data, subset = tissue==1)
+print(sprintf('spots covered by tissue: %d (%.2f%%)', ncol(org_data), ncol(org_data)/total_spots*100))
+```
+
+
+Tissue images highlight spots covered by tissue
+
+```{r}
+Idents(org_data) = 'tissue'
+SpatialDimPlot(org_data, crop = F, alpha=0.2, cols=c('1'='blue', '0'='red')) + NoLegend()
+```
+
+
+## Filter out genes not detected in any spots within this sample
+
+Keep genes detected in >=1 spot
+
+```{r}
+tmp = Matrix::rowSums(org_data@assays$spatial@counts)
+need.genes = names(tmp)[tmp>0]
+print(sprintf('finally keep %d genes', length(need.genes)))
+  
+# subset genes
+org_data = subset(org_data, features=need.genes)
+```
+
+Violin plot of genes expressed in spots
+
+```{r}
+tmp = data.frame(spot_sum=Matrix::colSums(org_data@assays$spatial@counts>0))
+ggplot(tmp, aes(x='', y=spot_sum)) +
+  geom_violin(fill='orange', width=1) +
+  geom_jitter(size=0.1, position=position_jitter(0.1)) +
+  scale_y_continuous(limits=c(0, 9500), breaks=seq(0, 9500, 500)) +
+  labs(x='', y='#genes expressed in spot')
+```
+
+
+
+## Save files for deconvolution
+
+### Spatial spot nUMI
+
+Save spots and genes after filtering into file [IPF_spatial_spot_nUMI.csv.gz](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_spatial_spot_nUMI.csv.gz). **Rows as spatial spots and columns as genes**.
+
+```{r}
+data.table::fwrite(as.data.frame(as.matrix(Matrix::t(org_data@assays$spatial@counts))), 'IPF_spatial_spot_nUMI.csv.gz', row.names = T)
+print(sprintf('save %d gene nUMIs of %d spatial spots into file %s', ncol(org_data), nrow(org_data), 'IPF_spatial_spot_nUMI.csv.gz'))
+```
+
+
+### Physical Locations of spatial spots
+
+The `x` and `y` coordinates of spatial spots are from `col` and `row`, respectively. `col` and `row` are generated by [10x Space Ranger](https://support.10xgenomics.com/spatial-gene-expression/software/pipelines/latest/what-is-space-ranger). Save it into file [IPF_spatial_spot_loc.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_spatial_spot_loc.csv).
+
+
+```{r}
+local_df = org_data@images$x1@coordinates %>%
+  select(c('col', 'row'))
+
+colnames(local_df) = c('x', 'y')
+
+local_df[1:5, ]
+
+write.csv(local_df, 'IPF_spatial_spot_loc.csv')
+print(sprintf('save Physical Locations of spatial spots into file %s', 'IPF_spatial_spot_loc.csv'))
+```
+
+
+### Adjacency Matrix of spatial spots
+
+We define the neighborhood of a spatial spot contains the adjacent **left**, **right**, **top** and **bottom** spot, plus **the second closest spots at left and right**, that is, one spot has at most 6 neighbors.
+
+The generated Adjacency Matrix `A` only contains **1** and **0**, where 1 represents corresponding two spots are adjacent spots according to the definition of neighborhood, while value 0 for non-adjacent spots. Note **all diagonal entries are 0s**.
+
+Adjacency Matrix are saved into file [IPF_spatial_spot_adjacency_matrix.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_spatial_spot_adjacency_matrix.csv).
+
+```{r}
+getNeighbour = function(array_row, array_col) {
+  # based on the (row, col) of one spot, return the (row, col) of all 6 neighbours
+  return(list(c(array_row-1, array_col-1),
+              c(array_row-1, array_col+1),
+              c(array_row, array_col-2),
+              c(array_row, array_col+2),
+              c(array_row+1, array_col-1),
+              c(array_row+1, array_col+1)))
+}
+
+# adjacency matrix
+A = matrix(0, nrow = nrow(local_df), ncol = nrow(local_df))
+row.names(A) = rownames(local_df)
+colnames(A) = rownames(local_df)
+for (i in 1:nrow(local_df)) {
+  barcode = rownames(local_df)[i]
+  array_row = local_df[i, 'y']
+  array_col = local_df[i, 'x']
+  
+  # get neighbors
+  neighbours = getNeighbour(array_row, array_col)
+  
+  # fill the adjacency matrix
+  for (this.vec in neighbours) {
+    tmp.p = rownames(local_df[local_df$y==this.vec[1] & local_df$x==this.vec[2], ])
+    
+    if (length(tmp.p) >= 1) {
+      # target spots have neighbors in selected spots
+      for (neigh.barcode in tmp.p) {
+        A[barcode, neigh.barcode] = 1
+      }
+    }
+  }
+}
+
+A[1:5, 1:5]
+write.csv(A, 'IPF_spatial_spot_adjacency_matrix.csv')
+print(sprintf('save Adjacency Matrix of spatial spots into file %s', 'IPF_spatial_spot_adjacency_matrix.csv'))
+```
+
+Plot Adjacency Matrix. Each node is spot, spots within neighborhood are connected with edges.
+
+Note **reverse y axis** to to make the origin (0,0) at top left
+
+```{r, fig.width=28, fig.height=28}
+g = graph_from_adjacency_matrix(A, 'undirected', add.colnames = NA, add.rownames = NA)
+# manually set nodes x and y coordinates
+vertex_attr(g, name = 'x') = local_df$x
+vertex_attr(g, name = 'y') = local_df$y
+# reverse y axis to make the (0,0) at top left
+plot(g, vertex.size=2, edge.width=4, margin=-0.05, ylim=c(1, -1))
+```
+
+
+# Preprocess reference scRNA-seq data
+
+## Read original data file [IPF_scRNA_data.rds](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_scRNA_data.rds)
+
+
+```{r}
+file_name = file.path(home.dir, 'IPF_scRNA_data.rds')
+ref_data = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+
+celltype_category_order = c("Myeloid", "Endothelial", "Stromal", "Lymphoid", "Epithelial", "Multiplet") 
+
+print(sprintf('cells: %d; genes: %d', ncol(ref_data), nrow(ref_data)))
+print(sprintf('total %d distinct cell types', length(unique(ref_data$celltype))))
+```
+
+cell count by cell types
+
+```{r, fig.width=14, fig.height=10}
+meta.data = ref_data@meta.data
+meta.data = meta.data %>% group_by(celltype_category, celltype) %>% summarise(count=n())
+meta.data$celltype_category = factor(meta.data$celltype_category, levels = celltype_category_order)
+
+ggplot(meta.data, aes(x=celltype, y=count, label=count)) +
+  geom_bar(position=position_dodge2(width=0.9, preserve="single"), stat="identity") +
+  geom_text(position=position_dodge2(width=0.9, preserve="single"), vjust=0.5, hjust=-0.1, angle=90) +
+  theme_bw() +
+  xlab("") +
+  ylab("# of Cells") +
+  theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1),
+        legend.position="bottom",
+        strip.placement = "outside",
+        strip.background = element_rect(fill=NA, colour="grey50"),
+        panel.spacing=unit(0,"cm")) +
+  facet_grid(~ celltype_category, space="free_x", scales="free_x", switch="x")
+```
+
+## Filter on cells
+
+We only focus on **26 major cell types**
+
+* "Myeloid": "Macrophage", "Macrophage_Alveolar", "cDC1", "cDC2", "cMonocyte", "ncMonocyte", "Mast"
+* "Endothelial": "VE_Arterial", "VE_Venous", "VE_Capillary_A", "VE_Capillary_B", "Lymphatic", 
+* "Stromal": "Fibroblast-Adventitial", "Fibroblast-Airway", "Fibroblast-Alveolar", "Pericyte-Alveolar", "SMC-Vascular"
+* "Lymphoid": "T", "B", "NK"
+* "Epithelial": "Ciliated", "Basal", "Goblet", "ATI", "ATII", "AberrantBasaloid"
+
+```{r}
+need_celltypes = c("Macrophage", "Macrophage_Alveolar", "cDC1", "cDC2", "cMonocyte", "ncMonocyte", "Mast",
+                   "VE_Arterial", "VE_Venous", "VE_Capillary_A", "VE_Capillary_B", "Lymphatic",
+                   "Fibroblast-Adventitial", "Fibroblast-Airway", "Fibroblast-Alveolar", "Pericyte-Alveolar", "SMC-Vascular",
+                   "T", "B", "NK",
+                   "Ciliated", "Basal", "Goblet", "ATI", "ATII", "AberrantBasaloid")
+ref_data = subset(ref_data, subset = celltype %in% need_celltypes)
+print(sprintf('remain cells: %d; genes: %d', ncol(ref_data), nrow(ref_data)))
+```
+
+
+cell count of those 26 major cell types
+
+```{r, fig.width=9, fig.height=7}
+meta.data = ref_data@meta.data
+meta.data = meta.data %>% group_by(celltype_category, celltype) %>% summarise(count=n())
+meta.data$celltype_category = factor(meta.data$celltype_category, levels = celltype_category_order)
+meta.data$celltype = factor(meta.data$celltype, levels = need_celltypes)
+
+ggplot(meta.data, aes(x=celltype, y=count, label=count)) +
+  geom_bar(position=position_dodge2(width=0.9, preserve="single"), stat="identity") +
+  geom_text(position=position_dodge2(width=0.9, preserve="single"), vjust=0.5, hjust=-0.1, angle=90) +
+  theme_bw() +
+  xlab("") +
+  ylab("# of Cells") +
+  theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1),
+        legend.position="bottom",
+        strip.placement = "outside",
+        strip.background = element_rect(fill=NA, colour="grey50"),
+        panel.spacing=unit(0,"cm")) +
+  facet_grid(~ celltype_category, space="free_x", scales="free_x", switch="x") +
+  ylim(0, 5400)
+```
+
+
+## Filter on genes
+
+We excludes genes NOT expressed in any cells within the 26 major cell types
+
+```{r}
+gene_sum = Matrix::rowSums(ref_data@assays$RNA@counts)
+keep_genes = names(gene_sum)[gene_sum>0]
+ref_data = subset(ref_data, features = keep_genes)
+print(sprintf('remain cells: %d; genes: %d', ncol(ref_data), nrow(ref_data)))
+```
+
+## Save files
+
+Save cell type annotation of selected cells to file [IPF_ref_scRNA_cell_celltype.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_ref_scRNA_cell_celltype.csv).
+
+```{r}
+write.csv(ref_data@meta.data[, 'celltype', drop=F], 'IPF_ref_scRNA_cell_celltype.csv')
+print(sprintf('save cell type annotation of reference scRNA-seq cells into file %s', 'IPF_ref_scRNA_cell_celltype.csv'))
+```
+
+
+Save scRNA-seq nUMI matrix to file [IPF_ref_scRNA_cell_nUMI.csv.gz](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_ref_scRNA_cell_nUMI.csv.gz)
+
+```{r}
+ref_df = as.data.frame(as.matrix(Matrix::t(ref_data@assays$RNA@counts)), check.names=F)
+ref_df[1:5, 1:5]
+
+data.table::fwrite(ref_df, 'IPF_ref_scRNA_cell_nUMI.csv.gz', row.names = T)
+print(sprintf('save nUMI matrix of reference scRNA-seq cells into gzip compressed file %s', 'IPF_ref_scRNA_cell_nUMI.csv.gz'))
+```
+
+
