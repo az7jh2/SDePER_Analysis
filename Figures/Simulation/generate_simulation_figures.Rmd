@@ -1,0 +1,593 @@
+---
+title: "Generate figures in Simulation Analysis"
+author: "Yunqing Liu & Ningshan Li"
+date: "2023/08/07"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+# use ggpubr package (http://www.sthda.com/english/articles/24-ggpubr-publication-ready-plots/81-ggplot2-easy-way-to-mix-multiple-graphs-on-the-same-page/)
+library(dplyr)
+library(ggplot2)
+
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/Spatial/Figures/Simulation'
+save_file = FALSE
+
+my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
+method_color = c("SDePER"='#e6194b', "SpatialDWLS"='#3cb44b', "cell2location"='#ffe119', "SPOTlight"='#4363d8', "CARD"='#f58231', "DestVI"='#911eb4', "RCTD"='#46f0f0', "GLRM"='#f032e6')
+```
+
+
+# Summary
+
+This R Notebook generates figures in **Simulation Analysis** section in manuscript.
+
+1. **Inputs**:
+
+  * [`CoarseGrain_Data.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data/CoarseGrain_Data.rds): STARmap dataset used in simulation analysis.
+  * [`sim_spatial_spot_loc.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data/sim_spatial_spot_loc.csv): locations of simulated spatial pseudo-spots.
+  * [`simulation_all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Figures/Simulation/simulation_all_results.rds): cell type deconvolution results of all methods, as well as the ground truth in simulation analysis.
+
+2. **Outputs**:
+
+  * Table S1. Median RMSE, JSD, correlation and FDR of all methods in Scenario 1
+  * Figure 2A. Visualization of STARmap dataset
+  * Figure 2B. Boxplot of performance of all methods in Scenario 1
+  * Figure 2C. Heatmap of proportion of eL2/3 in the simulated spatial pseudo-spots
+  * Figure 2D. Boxplot of performance of all methods with External reference in Scenario 1~3
+  * Figure S1. Heatmap of proportions of 4 cell types in the simulated spatial pseudo-spots
+  * Figure S2. Correlations between proportions of all cell types in Scenario 1
+
+
+# Version
+
+```{r}
+version[['version.string']]
+print(sprintf('Package %s version: %s', 'ggplot2', packageVersion('ggplot2')))
+print(sprintf('Package %s version: %s', 'ggpubr', packageVersion('ggpubr')))
+print(sprintf('Package %s version: %s', 'philentropy', packageVersion('philentropy'))) # JSD function
+```
+
+
+# Read relevant files
+
+## Read STARmap data
+
+```{r}
+file_name = file.path(home.dir, 'CoarseGrain_Data.rds')
+STARmap_meta = readRDS(file_name)$meta
+print(sprintf('load data from %s', file_name))
+```
+
+
+## Read locations of simulated spatial pseudo-spots
+
+```{r}
+file_name = file.path(home.dir, 'sim_spatial_spot_loc.csv')
+sim_spot_loc = read.csv(file_name, row.names = 1, check.names = F)
+print(sprintf('load data from %s', file_name))
+```
+
+
+## Read estimated cell type proportions by all methods
+
+NOTE: in **SpatialDWLS** results there are fewer spots than ground truth.
+
+```{r}
+file_name = file.path(home.dir, 'simulation_all_results.rds')
+all_res = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+
+# check the order of spatial spots and cell types are consistent
+all_spots = row.names(all_res[['Truth']])
+all_celltypes_S1 = colnames(all_res[['Truth']])
+all_celltypes_S2 = all_celltypes_S1[all_celltypes_S1!='VIP'] # in S2, we removed cell type VIP
+all_celltypes_S3 = c(all_celltypes_S1, 'High Intronic') # in S3, we added one cell type High Intronic
+```
+
+
+Check the order of spots and cell types are consistent before performance evaluation.
+
+```{r}
+for (scenario in c("S1_int_ref", "S1_ext_ref", "S2_ext_ref", "S3_ext_ref")) {
+  if (scenario %in% c("S1_int_ref", "S1_ext_ref")) {
+    this_celltype_order = all_celltypes_S1
+  } else if (scenario == 'S2_ext_ref') {
+    this_celltype_order = all_celltypes_S2
+  } else {
+    this_celltype_order = all_celltypes_S3
+  }
+  
+  for (method_name in names(all_res[[scenario]])) {
+    # note in SpatialDWLS result there are fewer spots than ground truth
+    if (nrow(all_res[[scenario]][[method_name]]) == nrow(all_res[['Truth']])) {
+      stopifnot(all(row.names(all_res[[scenario]][[method_name]]) == all_spots))
+    }
+    stopifnot(all(colnames(all_res[[scenario]][[method_name]]) == this_celltype_order))
+  }
+}
+```
+
+
+Check whether negative values of estimated cell type proportions exist, as negative values may cause error in JSD calculation and got `NaN`. Replace them as 0.
+
+```{r}
+for (scenario in c("S1_int_ref", "S1_ext_ref", "S2_ext_ref", "S3_ext_ref")) {
+  for (method_name in names(all_res[[scenario]])) {
+    tmp_df = all_res[[scenario]][[method_name]]
+    for (i in 1:nrow(tmp_df)) {
+      for (j in 1:ncol(tmp_df)) {
+        if (tmp_df[i, j] < 0) {
+          print(sprintf('%s: %s result: row %d (%s) column %d (%s) has negative value %g', scenario, method_name, i, row.names(tmp_df)[i], j, colnames(tmp_df)[j], tmp_df[i, j]))
+          # replace them with 0
+          all_res[[scenario]][[method_name]][i, j] = 0
+        }
+      }
+    }
+  }
+}
+```
+
+For the methods without cell type selection procedure, including **cell2location**, **DestVI** and **CARD**, we put a hard-thresholding with cutoff **0.1** on the estimated cell type compositions to force the extremely small proportions to be zeros.
+
+NOTE: we only use the hard-thresholded proportions for calculation of RMSE, JSD, Pearson correlation and FDR. For heatmap, we use the original proportions without hard-thresholding.
+
+NOTE: for spots with all proportions < 0.1, we set the proportion of the cell type with largest proportion as 1, and set proportion of other cell types as 0.
+
+```{r}
+all_res_thresh = all_res
+
+for (scenario in c("S1_int_ref", "S1_ext_ref", "S2_ext_ref", "S3_ext_ref")) {
+  for (method_name in c("cell2location", "DestVI", "CARD")) {
+    tmp_df = all_res[[scenario]][[method_name]]
+    tmp_count = 0
+    for (i in 1:nrow(tmp_df)) {
+      if (any(tmp_df[i, ]<0.1 & tmp_df[i, ]>0)) {
+        tmp_count = tmp_count + 1
+        this_row_max_col = which.max(tmp_df[i, ])
+        # replace them with 0 then re-normalize to sum to 1
+        tmp_df[i, tmp_df[i,]<0.1] = 0
+        if (sum(tmp_df[i, ]) == 0) {
+          print(sprintf('WARNING: %s: %s result: row %d (%s) has all values within range (0, 0.1)', scenario, method_name, i, row.names(tmp_df)[i]))
+          tmp_df[i, this_row_max_col] = 1
+        } else {
+          tmp_df[i, ] = tmp_df[i, ] / sum(tmp_df[i, ])
+        }
+        all_res_thresh[[scenario]][[method_name]][i, ] = tmp_df[i, ]
+      }
+    }
+    print(sprintf('%s: %s result: %d rows have value(s) within range (0, 0.1)', scenario, method_name, tmp_count))
+  }
+}
+```
+
+
+
+# Evaluate performance of cell type deconvolution methods
+
+## Calculate spot-wise performance of all methods
+
+4 performance measurements:
+
+* root mean square error (**RMSE**): quantifies the overall estimation accuracy
+* Jensen-Shannon Divergence (**JSD**): assesses similarity between the estimated cell type distribution and ground-truth per spot
+* **Pearson’s correlation coefficient**: measures the similarity of estimation to ground-truth
+* false discovery rate (**FDR**): measures how many cell types were falsely predicted to be present
+
+NOTE:
+
+* in Scenario 2 we removed one cell type VIP. We manually add VIP back to the results of all methods and set its proportion as 0. The evaluation are based on all 12 cell types.
+* in Scenario 3 we added one cell type High Intronic. We manually add High Intronic to ground truth and set its proportion as 0. The evaluation are based on 13 cell types.
+* in **SpatialDWLS** results there are fewer spots than ground truth. The evaluation are based on spots with both truth and prediction only.
+* for **cell2location**, **DestVI** and **CARD**, we used proportions with **hard-thresholding** for calculation in all Scenarios.
+
+```{r}
+binaryPredEvaluation = function(truth, pred) {
+  # Given an array of truth and predictions (either 0 or 1), calculate confusion matrix
+  # convert to factors to ensure get a full 2*2 confusion matrix
+  truth_factor = factor(truth, levels = c(0, 1))
+  pred_factor = factor(pred, levels = c(0, 1))
+  # Generate confusion matrix
+  conf_matrix = table(Actual = truth_factor, Predicted = pred_factor)
+  # Extract elements of the confusion matrix
+  TP = conf_matrix[2, 2]
+  FP = conf_matrix[1, 2]
+  FN = conf_matrix[2, 1]
+  TN = conf_matrix[1, 1]
+  # Calculate FDR (False Discovery Rate)
+  FDR = FP / (TP + FP)
+  # Calculate FNR (False Negative Rate)
+  FNR = FN / (TP + FN)
+  return(c(FDR, FNR))
+}
+
+calcPerformance = function(truth, pred) {
+  # calculate RMSE, JSD, correlation and FDR for each row
+  # inputs are matrix with rows as spots and columns as cell types, order has been checked to be consistent
+  stopifnot(all(row.names(truth) == row.names(pred)))
+  stopifnot(all(colnames(truth) == colnames(pred)))
+  
+  # binary cell type proportions (0:absent; 1:present)
+  truth_binary = truth != 0
+  pred_binary = pred != 0
+  # in-place conversion from bool to 0/1 while keeping dimensions, row names and column names, as `as.numeric()` will "flattern" the original matrix
+  truth_binary[] = as.numeric(truth_binary)
+  pred_binary[] = as.numeric(pred_binary)
+  
+  perform_df = data.frame(matrix(ncol=5, nrow=0))
+  colnames(perform_df) = c('RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
+  
+  for (i in 1:nrow(truth)) {
+    RMSE = sqrt(mean((truth[i,] - pred[i,]) ^ 2))
+    if (sum(pred[i,])>0 & sum(truth[i,])>0) {
+      JSD = philentropy::JSD(rbind(truth[i,], pred[i,]), unit = 'log2', est.prob = 'empirical')
+    } else {
+      JSD = 1
+    }
+    Pearson = cor.test(truth[i,], pred[i,])$estimate
+    tmp = binaryPredEvaluation(truth_binary[i,], pred_binary[i,])
+    FDR = tmp[1]
+    FNR = tmp[2]
+    
+    perform_df[nrow(perform_df)+1, ] = c(RMSE, JSD, Pearson, FDR, FNR)
+  }
+  
+  return(perform_df)
+}
+
+
+all_perform = list()
+
+for (scenario in c("S1_int_ref", "S1_ext_ref", "S2_ext_ref", "S3_ext_ref")) {
+  if (scenario %in% c("S1_int_ref", "S1_ext_ref", "S2_ext_ref")) {
+    this_round_truth = all_res_thresh[['Truth']]
+  } else {
+    # add cell type High Intronic to Truth with 0 proportions
+    this_round_truth = all_res_thresh[['Truth']]
+    this_round_truth['High Intronic'] = 0
+    this_round_truth = this_round_truth[, all_celltypes_S3]
+  }
+  
+  all_perform[[scenario]] = list()
+  for (method_name in names(all_res[[scenario]])) {
+    this_pred = all_res_thresh[[scenario]][[method_name]]
+    if (scenario == 'S2_ext_ref') {
+      # add VIP back
+      this_pred['VIP'] = 0
+      this_pred = this_pred[, all_celltypes_S1]
+    }
+    
+    if (method_name != 'SpatialDWLS') {
+      all_perform[[scenario]][[method_name]] = calcPerformance(as.matrix(this_round_truth), as.matrix(this_pred))
+    } else {
+      this_truth = this_round_truth[row.names(this_pred),]
+      all_perform[[scenario]][[method_name]] = calcPerformance(as.matrix(this_truth), as.matrix(this_pred))
+    }
+  }
+}
+```
+
+
+## Summary spot-wise performance into method-wise
+
+Including Table S1. Median RMSE, JSD, correlation and FDR of all methods in Scenario 1.
+
+```{r}
+perform_raw_df = data.frame(matrix(ncol=8, nrow=0))
+colnames(perform_raw_df) = c('Scenario', 'Method', 'Reference', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
+
+# calculate median performance across all spatial spots for all methods
+perform_median_df = data.frame(matrix(ncol=8, nrow=0))
+colnames(perform_median_df) = c('Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')
+
+for (scenario in c("S1_int_ref", "S1_ext_ref", "S2_ext_ref", "S3_ext_ref")) {
+  if (scenario == "S1_int_ref") {
+    this_scenario = 'Scenario 1'
+    this_ref = 'Internal'
+  } else if (scenario == "S1_ext_ref") {
+    this_scenario = 'Scenario 1'
+    this_ref = 'External'
+  } else if (scenario == 'S2_ext_ref') {
+    this_scenario = 'Scenario 2'
+    this_ref = 'External'
+  } else {
+    this_scenario = 'Scenario 3'
+    this_ref = 'External'
+  }
+  
+  for (method_name in names(all_perform[[scenario]])) {
+    tmp_df = all_perform[[scenario]][[method_name]]
+    tmp_df['Scenario'] = this_scenario
+    tmp_df['Method'] = method_name
+    tmp_df['Reference'] = this_ref
+    
+    perform_raw_df = rbind(perform_raw_df, tmp_df[, c('Scenario', 'Method', 'Reference', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')])
+    
+    perform_median_df[nrow(perform_median_df)+1, ] = c(this_scenario, method_name, this_ref,
+                                                       round(median(tmp_df$RMSE), 3),
+                                                       round(median(tmp_df$JSD), 3),
+                                                       round(median(tmp_df$Pearson), 3),
+                                                       round(median(tmp_df$FDR), 3),
+                                                       round(median(tmp_df$FNR), 3))
+  }
+}
+
+# set method column as factors
+perform_raw_df['Method'] = factor(perform_raw_df$Method, levels = c("SDePER", "GLRM", "SpatialDWLS", "cell2location", "SPOTlight", "CARD", "DestVI", "RCTD"))
+
+perform_median_df[, c('Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR')]
+```
+
+# Draw figures
+
+## Figure 2A. Visualization of STARmap dataset
+
+```{r, fig.width=4, fig.height=6.4}
+grid_l = 500 # pixels of grid size for coarse graining in simulation
+
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig2A_STARmap_visualization.pdf')
+  cairo_pdf(file_name, height=6.4, width=4, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+print(ggplot(STARmap_meta, aes(x=X, y=Y, color=cluster_name)) +
+        geom_point() +
+        scale_color_manual(values = my_color) +
+        scale_x_continuous(minor_breaks = seq(min(STARmap_meta$X)-grid_l, max(STARmap_meta$X)+grid_l, grid_l)) +
+        scale_y_continuous(minor_breaks = seq(min(STARmap_meta$Y)-grid_l, max(STARmap_meta$Y)+grid_l, grid_l)) +
+        theme_bw() +
+        theme(legend.title = element_blank(),
+              axis.title = element_blank(),
+              axis.text = element_blank(),
+              axis.ticks = element_blank(),
+              legend.text = element_text(size=12)) +
+        guides(color = guide_legend(override.aes = list(size = 3))))
+```
+
+
+## Figure 2B. Boxplot of performance of all methods in Scenario 1
+
+```{r, fig.width=6.5, fig.height=6}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig2B_S1_performance.pdf')
+  cairo_pdf(file_name, height=6, width=6.5, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+plot_df = perform_raw_df %>%
+  filter(Scenario=='Scenario 1')
+
+g_list = list()
+
+for (perform_ind in c('RMSE', 'Pearson', 'JSD', 'FDR')) {
+  g_list[[perform_ind]] = ggplot(plot_df, aes(x=Method, y=.data[[perform_ind]], fill=Method)) +
+                            geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+                            scale_fill_manual(values=method_color) +
+                            theme_classic() +
+                            theme(strip.text = element_text(size=10),
+                                  axis.text = element_text(color="black"),
+                                  axis.ticks.x = element_blank(),
+                                  axis.text.x = element_blank(),
+                                  axis.title.x = element_blank(),
+                                  legend.title = element_blank()) +
+                            facet_grid(~Reference)
+}
+
+g_list[['Pearson']] = g_list[['Pearson']] + geom_hline(yintercept=0, color="red", linetype="dashed")
+
+ggpubr::ggarrange(plotlist=g_list, ncol=2, nrow=2, common.legend=TRUE, legend="right")
+```
+
+
+## Figure 2D. Boxplot of performance of all methods with External reference in Scenario 1~3
+
+```{r, fig.width=6, fig.height=6}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig2D_S1-S3_ext_ref_performance.pdf')
+  cairo_pdf(file_name, height=6, width=6, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+dat_hline = data.frame(measure=c('Pearson'), yp=c(0))
+# NOTE: we also need to add factor level to hline, otherwise the facet order of boxplots will be disturbed by hline
+dat_hline['measure'] = factor(dat_hline$measure, levels = c('RMSE', 'JSD', 'Pearson', 'FDR'))
+
+plot_df = perform_raw_df %>%
+  filter(Reference=='External' & Method!='GLRM')
+
+plot_df = tidyr::gather(plot_df[, c('Scenario', 'Method', 'Reference', 'RMSE', 'JSD', 'Pearson', 'FDR')], measure, value, RMSE:FDR, factor_key=F)
+
+plot_df['measure'] = factor(plot_df$measure, levels = c('RMSE', 'JSD', 'Pearson', 'FDR'))
+plot_df['Scenario'] = factor(plot_df$Scenario, levels = c('Scenario 1', 'Scenario 2', 'Scenario 3'))
+
+ggplot(plot_df, aes(x=Method, y=value, fill=Method)) +
+  geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+  scale_fill_manual(values=method_color) +
+  facet_grid(measure~Scenario, scales='free_y') +
+  theme_classic() +
+  theme(panel.border = element_rect(fill=NA, colour="black", inherit.blank=T, size=1),
+        strip.text = element_text(size=12), strip.background = element_rect(size=0),
+        axis.ticks = element_blank(), axis.text = element_blank(), axis.title = element_blank(),
+        axis.line = element_blank(), # avoid thick axis line in left and bottom border
+        legend.position = "right", legend.title = element_blank()) +
+  geom_hline(aes(yintercept = yp), data=dat_hline, color="red", linetype="dashed")
+```
+
+
+## Figure 2C. Heatmap of proportion of eL2/3 in the simulated spatial pseudo-spots
+
+For Scenario 1 with External reference
+
+```{r, fig.width=4, fig.height=6}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig2C_eL23_prop_heatmap.pdf')
+  cairo_pdf(file_name, height=6, width=4, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+# A function to draw heatmap show the proportion of one cell type in simulated spots
+# NOTE: When showing SpatialDWLS results, NOT show spots where there are no results from SpatialDWLS
+onePropHeatmap = function(spot_loc, all_result, celltype, legend_pos='bottom', show_celltype=F) {
+  # create dataframe for plot
+  # first get the ground truth
+  tmp_df = all_result[['Truth']][, celltype, drop=F]
+  tmp_df['method'] = 'True'
+  plot_df = merge(spot_loc[, c('imagerow', 'imagecol')], tmp_df, by='row.names')
+  
+  # add results of all methods (rbind will automatically check columns first)
+  all_methods = c("SDePER", "SpatialDWLS", "cell2location", "SPOTlight", "CARD", "DestVI", "RCTD")
+  
+  for (method in all_methods) {
+    tmp_df = all_result[['S1_ext_ref']][[method]][, celltype, drop=F]
+    tmp_df['method'] = method
+    plot_df = rbind(plot_df, merge(spot_loc[, c('imagerow', 'imagecol')], tmp_df, by='row.names'))
+  }
+  
+  plot_df['method'] = factor(plot_df$method, levels = c('True', all_methods))
+  colnames(plot_df)[colnames(plot_df)==celltype] = 'Proportion'
+  
+  # draw heatmap
+  g = ggplot(plot_df, aes(x=imagecol, y=imagerow, fill=Proportion)) +
+    geom_tile() +
+    viridis::scale_fill_viridis(limits = c(0, 1)) +
+    theme_classic() +
+    theme(panel.border = element_rect(fill=NA, colour="black", inherit.blank=T, size=1),
+          strip.background = element_rect(size=0), strip.text = element_text(size=10, hjust=0), 
+          axis.title = element_blank(), axis.text = element_blank(), axis.ticks = element_blank(),
+          axis.line = element_blank(), # avoid thick axis line in left and bottom border
+          legend.title = element_text(size=10), legend.position = legend_pos,
+          plot.title = element_text(hjust = 0.5, face = 'bold', margin = margin(t=10, b=0))) +
+    facet_wrap(.~method, ncol = 4)
+  
+  if (show_celltype) {
+    g = g + ggtitle(celltype)
+  }
+  
+  return(g)
+}
+
+print(onePropHeatmap(sim_spot_loc, all_res, 'eL2/3'))
+```
+
+
+## Figure S1. Heatmap of proportions of 4 cell types in the simulated spatial pseudo-spots
+
+For Scenario 1 with External reference
+
+```{r, fig.width=9.6, fig.height=6}
+if (save_file) {
+  file_name = file.path(home.dir, 'FigS1_4celltypes_prop_heatmap.pdf')
+  cairo_pdf(file_name, height=6, width=9.6, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+ggpubr::ggarrange(onePropHeatmap(sim_spot_loc, all_res, 'eL4', legend_pos = 'right', show_celltype = T),
+                  onePropHeatmap(sim_spot_loc, all_res, 'eL5', legend_pos = 'right', show_celltype = T),
+                  onePropHeatmap(sim_spot_loc, all_res, 'eL6', legend_pos = 'right', show_celltype = T),
+                  onePropHeatmap(sim_spot_loc, all_res, 'Oligo', legend_pos = 'right', show_celltype = T),
+                  labels = c('A', 'B', 'C', 'D'), font.label = list(size=18), vjust = 1)
+```
+
+
+## Figure S2. Correlations between proportions of all cell types in Scenario 1
+
+Since we only calculate correlation, we use original proportions without hard-thresholding for **cell2location**, **DestVI** and **CARD**.
+
+```{r, fig.width=7.8, fig.height=6}
+if (save_file) {
+  file_name = file.path(home.dir, 'FigS2_cor_allcelltypes_prop_heatmap.pdf')
+  cairo_pdf(file_name, height=6, width=7.8, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+celltype_order = c("eL6", "Astro", "Oligo", "eL2/3", "eL4", "Endo", "eL5", "Micro", "PVALB", "SST", "Smc", "VIP")
+
+cor_df = data.frame(matrix(ncol=5, nrow=0))
+colnames(cor_df) = c('Reference', 'Method', 'Correlation', 'celltype_truth', 'celltype_pred')
+
+# calculate Pearson correlation of all cell types between Truth and method predictions
+for (scenario in c("S1_int_ref", "S1_ext_ref")) {
+  if (scenario == "S1_int_ref") {
+    this_ref = 'Internal'
+  } else if (scenario == "S1_ext_ref") {
+    this_ref = 'External'
+  }
+  
+  for (method_name in names(all_res[[scenario]])) {
+    # cor(x,y) given x and y are matrices then the covariances (or correlations) between the columns of x and the columns of y are computed
+    # in resulted correlation matrix, rows are columns from x, and columns are columns from y
+    # NOTE: For SpatialDWLS results, omit spots with no results from SpatialDWLS
+    if (method_name != 'SpatialDWLS') {
+      tmp_cor = as.data.frame(cor(all_res[['Truth']], all_res[[scenario]][[method_name]]))
+    } else {
+      tmp_cor = as.data.frame(cor(all_res[['Truth']][row.names(all_res[[scenario]][[method_name]]),], all_res[[scenario]][[method_name]]))
+    }
+    
+    tmp_cor['celltype_truth'] = row.names(tmp_cor)
+    # convert all columns from wide to long, note rows of correlation matrix belong to Ground Truth
+    tmp_cor_long = tidyr::gather(as.data.frame(tmp_cor), celltype_pred, Correlation, -celltype_truth)
+    tmp_cor_long['Reference'] = this_ref
+    tmp_cor_long['Method'] = method_name
+    cor_df = rbind(cor_df, tmp_cor_long)
+  }
+}
+    
+cor_df['celltype_truth'] = factor(cor_df$celltype_truth, levels = celltype_order)
+cor_df['celltype_pred'] = factor(cor_df$celltype_pred, levels = celltype_order)
+
+# left panel: SDePER, SpatialDWLS, SPOTlight, DestVI
+plot_df = cor_df %>% filter(Method %in% c("SDePER", "SpatialDWLS", "SPOTlight", "DestVI"))
+plot_df['Method'] = factor(plot_df$Method, levels = c("SDePER", "SpatialDWLS", "SPOTlight", "DestVI"))
+g1 = ggplot(plot_df, aes(x=celltype_pred, y=celltype_truth, fill=Correlation)) +
+  geom_tile() +
+  scale_fill_gradient2(limits = c(-1, 1)) +
+  theme_classic() +
+  theme(strip.text = element_text(size=12),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle=90, vjust=0.5, hjust=1),
+        axis.title.y = element_text(size=12, family="sans"), # to be consistent with the x axis title added by ggpubr::text_grob
+        axis.line = element_blank(), # avoid thick axis line in left and bottom border
+        legend.position = "none") +
+  ylab("True proportion") +
+  facet_grid(Method~Reference, switch = 'y')
+
+# right panel: GLRM, cell2location, CARD, RCTD
+plot_df = cor_df %>% filter(Method %in% c("GLRM", "cell2location", "CARD", "RCTD"))
+plot_df['Method'] = factor(plot_df$Method, levels = c("GLRM", "cell2location", "CARD", "RCTD"))
+
+g2 = ggplot(plot_df, aes(x=celltype_pred, y=celltype_truth, fill=Correlation)) +
+  geom_tile() +
+  scale_fill_gradient2(limits = c(-1, 1)) +
+  theme_classic() +
+  theme(strip.text = element_text(size=12),
+        axis.text.x = element_text(angle=90, vjust=0.5, hjust=1),
+        axis.text.y = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.line = element_blank(), # avoid thick axis line in left and bottom border
+        legend.position = "right") +
+  facet_grid(Method~Reference)
+
+figure = ggpubr::ggarrange(g1, g2, widths = c(0.9, 1), align = "h")
+
+# add common axis title in the center of two panels
+ggpubr::annotate_figure(figure, bottom = ggpubr::text_grob("Predicted proportion from reference dataset", hjust=0.55))
+```
+
+

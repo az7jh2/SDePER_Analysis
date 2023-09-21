@@ -1,0 +1,442 @@
+---
+title: "Generate figures in Real Data Analysis: IPF"
+author: "Yunqing Liu & Ningshan Li"
+date: "2023/09/20"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+# use ggpubr package (http://www.sthda.com/english/articles/24-ggpubr-publication-ready-plots/81-ggplot2-easy-way-to-mix-multiple-graphs-on-the-same-page/)
+# multipanelfigure supports arranging outputs from ComplexHeatmap
+library(dplyr)
+library(ggplot2)
+library(multipanelfigure)
+library(Seurat)
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/Spatial/Figures/IPF'
+save_file = FALSE
+
+my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
+method_color = c("SDePER"='#e6194b', "SpatialDWLS"='#3cb44b', "cell2location"='#ffe119', "SPOTlight"='#4363d8', "CARD"='#f58231', "DestVI"='#911eb4', "RCTD"='#46f0f0', "GLRM"='#f032e6')
+
+
+ipf_celltype_marker = c("SMC-Vascular"="MYH11", "Ciliated"="FOXJ1", "ATI"="AQP4", "ATII"="SFTPA1")
+```
+
+
+# Summary
+
+This R Notebook generates figures for idiopathic pulmonary fibrosis (**IPF**) lung dataset in Real Data Analysis section in manuscript.
+
+1. **Inputs**:
+
+  * [`IPF_spatial_data.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/IPF/IPF_spatial_data.rds): A `Seurat` object of IPF dataset, including raw nUMI and physical locations of spatial spots, and a thumbnail of tissue image. In total 4,992 spatial spots and 60,651 genes are included.
+  * [`IPF_all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Figures/IPF/IPF_all_results.rds): cell type deconvolution results of all methods in IPF data analysis.
+
+2. **Outputs**:
+
+  * Figure 6B. Heatmap of 4 cell type-specific marker genes
+  * Figure 6C. Visualization of inferred cell type proportions in each spot of 4 methods
+  * Figure 6D. Barplot of weighted mean of expressions of 4 cell type-specific marker genes
+  * Figure 6E. Heatmap of pairwise correlation of estimated cell type proportions
+  * Figure S12. Visualization of inferred cell type proportions in each spot of all methods
+
+
+# Version
+
+```{r}
+version[['version.string']]
+print(sprintf('Package %s version: %s', 'ggplot2', packageVersion('ggplot2')))
+print(sprintf('Package %s version: %s', 'ComplexHeatmap', packageVersion('ComplexHeatmap')))
+print(sprintf('Package %s version: %s', 'ggpubr', packageVersion('ggpubr')))
+print(sprintf('Package %s version: %s', 'multipanelfigure', packageVersion('multipanelfigure')))
+print(sprintf('Package %s version: %s', 'Seurat', packageVersion('Seurat')))
+```
+
+
+# Read relevant files
+
+## Read `Seurat` object of spatial data
+
+```{r}
+file_name = file.path(home.dir, 'IPF_spatial_data.rds')
+ipf_obj = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+print(sprintf('genes: %d, spots: %d', ncol(ipf_obj), nrow(ipf_obj)))
+```
+
+only focus on spots covered by tissue
+
+```{r}
+# add tissue indicator into meta data
+total_spots = ncol(ipf_obj)
+tmp.df = ipf_obj@images[[1]]@coordinates
+tmp.df = tmp.df[colnames(ipf_obj), ]
+stopifnot(nrow(tmp.df) == ncol(ipf_obj))
+ipf_obj[['tissue']] = tmp.df$tissue
+
+# subset spots covered by tissue
+ipf_obj = subset(ipf_obj, subset = tissue==1)
+print(sprintf('spots covered by tissue: %d (%.2f%%)', ncol(ipf_obj), ncol(ipf_obj)/total_spots*100))
+```
+
+
+## Read estimated cell type proportions by all methods
+
+NOTE: cell type deconvolution results from **SpatialDWLS** and **CARD** are fewer than all 3,532 spatial spots.
+
+```{r}
+file_name = file.path(home.dir, 'IPF_all_results.rds')
+all_res = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+
+# check the order of spatial spots and cell types are consistent
+all_spots = row.names(all_res[['SDePER']])
+all_celltypes = colnames(all_res[['SDePER']])
+all_methods = names(all_res)
+```
+
+
+Check the order of spots and cell types are consistent before performance evaluation.
+
+```{r}
+for (method_name in all_methods) {
+  if (method_name %notin% c('SpatialDWLS', 'CARD')) {
+    stopifnot(all(row.names(all_res[[method_name]]) == all_spots))
+  }
+  stopifnot(all(colnames(all_res[[method_name]]) == all_celltypes))
+}
+```
+
+
+Check whether negative values of estimated cell type proportions exist. Replace them as 0.
+
+```{r}
+for (method_name in all_methods) {
+  tmp_df = all_res[[method_name]]
+  for (i in 1:nrow(tmp_df)) {
+    for (j in 1:ncol(tmp_df)) {
+      if (tmp_df[i, j] < 0) {
+        print(sprintf('%s result: row %d (%s) column %d (%s) has negative value %g', method_name, i, row.names(tmp_df)[i], j, colnames(tmp_df)[j], tmp_df[i, j]))
+        # replace them with 0
+        all_res[[method_name]][i, j] = 0
+      }
+    }
+  }
+}
+```
+
+
+# Draw figures
+
+We use visualization functions `SpatialFeaturePlot` in `Seurat` to draw the heatmaps of gene expression and cell type proportions.
+
+## Figure 6B. Heatmap of 4 cell type-specific marker genes
+
+*MYH11* for SMC, *FOXJ1* for Ciliated cells, *AQP4* for ATI, *SFTPA1* for ATII.
+
+NOTE: we applied a **truncation** to the sequencing depth normalized gene expression such that any value >= 97th percentile is set to the value at the 97th percentile. Then we re-scale the expression values to range [0, 1] across all 3,532 spots.  
+
+```{r, fig.width=12, fig.height=3}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig6B_IPF_4celltype_marker_heatmap.pdf')
+  cairo_pdf(file_name, height=3, width=12, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+g_list = list()
+
+for (one_gene in unname(ipf_celltype_marker)) {
+  stopifnot(one_gene %in% row.names(ipf_obj))
+  tmp_gene_vec = ipf_obj@assays$spatial@data[one_gene, ]
+  # in case that so many 0s cause 97th percentile is 0, if so use the smallest positive value as the threshold for truncation
+  tmp_thresh = max(min(tmp_gene_vec[tmp_gene_vec>0]), quantile(tmp_gene_vec, 0.97))
+  tmp_gene_vec[tmp_gene_vec>=tmp_thresh] = tmp_thresh
+  # re-scale to range[0, 1]
+  tmp_gene_vec = (tmp_gene_vec - min(tmp_gene_vec)) / (max(tmp_gene_vec) - min(tmp_gene_vec))
+  # assign to meta data then plot
+  ipf_obj[[one_gene]] = tmp_gene_vec
+  g_list[[length(g_list)+1]] = SpatialFeaturePlot(ipf_obj, features = one_gene, image.alpha = 0) + 
+    ggtitle(one_gene) + 
+    theme(plot.title = element_text(size=14, hjust=0.5),
+          legend.position = 'right',
+          legend.title = element_text(face = 'bold')) +
+    guides(fill = guide_colorbar(title = 'Exp'))
+}
+
+ggpubr::ggarrange(plotlist = g_list, nrow = 1, align = 'h', common.legend = T, legend = 'right')
+```
+
+
+## Figure 6D. Barplot of weighted mean of expressions of 4 cell type-specific marker genes
+
+We calculate the average expression of each marker gene across all spots weighted by predicted proportion of its corresponding cell type (*MYH11* for SMC, *FOXJ1* for Ciliated cells, *AQP4* for ATI, *SFTPA1* for ATII).
+
+NOTE:
+
+We use scaled gene expression already calculated in Figure 6B, then for each method, select the spots with prediction from that method, and further re-scale the expression values to range [0, 1] across **selected** spots again.
+
+For one method and one cell type with its corresponding marker gene, we have predicted proportions $w$ for $n$ spots. The weighted mean is calculated by: 
+
+$$ Weighted Mean = \frac{\sum_{i=1}^{n} w_i \times x_i}{\sum_{i=1}^{n} w_i} $$
+
+here $x_i$ is the scaled gene expression for spot $i$.
+
+```{r, fig.width=4, fig.height=8}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig6D_IPF_barplot_weighted_mean_exp.pdf')
+  cairo_pdf(file_name, height=8, width=4, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+avg_exp_df = data.frame(matrix(ncol=3, nrow=0))
+colnames(avg_exp_df) = c('celltype', 'method', 'avg_exp')
+
+for (method_name in names(all_res)) {
+  tmp_select_spots = row.names(all_res[[method_name]])
+  for (i in 1:length(ipf_celltype_marker)) {
+    tmp_prop = all_res[[method_name]][, names(ipf_celltype_marker)[i], drop=T]
+    tmp_exp = ipf_obj@meta.data[tmp_select_spots, ipf_celltype_marker[i], drop=T]
+    # re-scale expression to range [0, 1] again
+    tmp_exp = (tmp_exp - min(tmp_exp)) / (max(tmp_exp) - min(tmp_exp))
+    # weighted average
+    avg_exp = sum(tmp_prop * tmp_exp) / sum(tmp_prop)
+    avg_exp_df[nrow(avg_exp_df)+1, ] = c(names(ipf_celltype_marker)[i], method_name, avg_exp)
+  }
+}
+
+avg_exp_df[avg_exp_df$celltype=='SMC-Vascular', 'celltype'] = 'SMC'
+avg_exp_df$celltype = factor(avg_exp_df$celltype, levels = c("SMC", "Ciliated", "ATI", "ATII"))
+avg_exp_df$method = factor(avg_exp_df$method, levels = names(all_res))
+avg_exp_df$avg_exp = as.numeric(avg_exp_df$avg_exp)
+
+ggplot(avg_exp_df, aes(x=method, y=avg_exp, fill=method)) +
+  geom_bar(stat="identity", color="black") +
+  geom_text(aes(label=round(avg_exp, 3), y=ifelse(avg_exp<=0, avg_exp+0.05, avg_exp), color=ifelse(method %in% c('SPOTlight', 'DestVI'), "white", "black")), vjust=1.1, size=3.5, fontface="bold") +
+  scale_fill_manual(values=method_color) +
+  theme_classic() +
+  theme(axis.text = element_text(colour="black", size=10),
+        axis.text.x = element_text(angle=45, hjust=1),
+        axis.title.x = element_blank(), axis.title.y = element_text(size=14),
+        strip.text = element_text(size=12, colour="black"),
+        legend.position = "none") +
+  facet_wrap(celltype~., ncol = 1, scales = "free_y") +
+  ylab("Weighted Mean of Expression") +
+  scale_color_identity() # to make sure ggplot2 uses the set conditional colors
+```
+
+
+## Figure 6C. Visualization of inferred cell type proportions in each spot of 4 methods
+
+We only show 4 cell types (SMC, Ciliated cells, ATI and ATII cells) and 4 methods (SDePER, SpatialDWLS, DestVI and RCTD).
+
+NOTE: we assign similar colors for cell type proportions falling in [0.5, 1].
+
+```{r, fig.width=12, fig.height=12}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig6C_IPF_4celltype_props_4methods.pdf')
+  cairo_pdf(file_name, height=12, width=12, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+myPalette = colorRampPalette(colors = rev(x = RColorBrewer::brewer.pal(n = 11, name = "Spectral")))
+
+g_list = list()
+
+for (method_name in c("SDePER", "SpatialDWLS", "DestVI", "RCTD")) {
+  for (this_celltype in c("SMC-Vascular", "Ciliated", "ATI", "ATII")) {
+    # assign to meta data then plot; Seurat will match the spot order automatically, and assign NA to spots without corresponding values
+    if (this_celltype == 'SMC-Vascular') {
+      ipf_obj[['SMC']] = all_res[[method_name]][, this_celltype, drop=F]
+      plot_celltype = 'SMC'
+    } else {
+      ipf_obj[[this_celltype]] = all_res[[method_name]][, this_celltype, drop=F]
+      plot_celltype = this_celltype
+    }
+    
+    g_list[[length(g_list)+1]] = SpatialFeaturePlot(ipf_obj, features = plot_celltype, image.alpha = 0) +
+      scale_fill_gradientn(colours = myPalette(100), values=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 1), breaks=c(0, 0.25, 0.5, 0.75, 1), limits=c(0, 1)) +
+      theme(plot.title = element_text(size=14, hjust=0.5),
+            axis.title.y = element_text(size=14),
+            legend.position = 'right',
+            legend.title = element_text(face = 'bold')) +
+      guides(fill = guide_colorbar(title = 'Prop'))
+    
+    if (method_name == 'SDePER') {
+      # add cell type name as figure title
+      g_list[[length(g_list)]] = g_list[[length(g_list)]] + ggtitle(plot_celltype)
+    }
+    if (plot_celltype == 'SMC') {
+      # add method name as y axis title
+      g_list[[length(g_list)]] = g_list[[length(g_list)]] + ylab(method_name)
+    } else {
+      g_list[[length(g_list)]] = g_list[[length(g_list)]] + ylab('')
+    }
+  }
+}
+
+ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 4, align = 'hv', common.legend = T, legend = 'right')
+```
+
+
+## Figure S12. Visualization of inferred cell type proportions in each spot of all methods
+
+Compared with Figure 6C, we show the same 4 cell types (SMC, Ciliated cells, ATI and ATII cells) but all methods.
+
+NOTE: we assign similar colors for cell type proportions falling in [0.5, 1].
+
+```{r, fig.width=15, fig.height=9}
+if (save_file) {
+  file_name = file.path(home.dir, 'FigS12_IPF_4celltype_props_allmethods.pdf')
+  cairo_pdf(file_name, height=9, width=15, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+myPalette = colorRampPalette(colors = rev(x = RColorBrewer::brewer.pal(n = 11, name = "Spectral")))
+
+g_list = list()
+
+for (this_celltype in c("SMC-Vascular", "Ciliated", "ATI", "ATII")) {
+  for (method_name in names(all_res)) {
+    # assign to meta data then plot; Seurat will match the spot order automatically, and assign NA to spots without corresponding values
+    if (this_celltype == 'SMC-Vascular') {
+      ipf_obj[['SMC']] = all_res[[method_name]][, this_celltype, drop=F]
+      plot_celltype = 'SMC'
+    } else {
+      ipf_obj[[this_celltype]] = all_res[[method_name]][, this_celltype, drop=F]
+      plot_celltype = this_celltype
+    }
+    
+    g_list[[length(g_list)+1]] = SpatialFeaturePlot(ipf_obj, features = plot_celltype, image.alpha = 0) +
+      scale_fill_gradientn(colours = myPalette(100), values=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 1), breaks=c(0, 0.25, 0.5, 0.75, 1), limits=c(0, 1)) +
+      theme(plot.title = element_text(size=14, hjust=0.5),
+            axis.title.y = element_text(size=14),
+            legend.position = 'right',
+            legend.title = element_text(face = 'bold')) +
+      guides(fill = guide_colorbar(title = 'Prop'))
+    
+    if (method_name == 'SDePER') {
+      # add cell type name as y axis title
+      g_list[[length(g_list)]] = g_list[[length(g_list)]] + ylab(plot_celltype)
+    } else {
+      g_list[[length(g_list)]] = g_list[[length(g_list)]] + ylab('')
+    }
+    if (plot_celltype == 'SMC') {
+      # add method name as figure title
+      g_list[[length(g_list)]] = g_list[[length(g_list)]] + ggtitle(method_name)
+    }
+  }
+}
+
+ggpubr::ggarrange(plotlist = g_list, ncol = 7, nrow = 4, align = 'hv', common.legend = T, legend = 'right')
+```
+
+
+## Figure 6E. Heatmap of pairwise correlation of estimated cell type proportions
+
+NOTE: we use **Spearman's rank correlation coefficient**, and set the color map to place greater emphasis (in terms of the number of distinct colors) on correlation coefficient range [-0.4, 0.4].
+
+```{r, fig.width=18, fig.height=7}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig6E_IPF_celltype_prop_cor_heatmap.pdf')
+  cairo_pdf(file_name, height=7, width=18, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+# first define a custom function to draw heatmap for one method
+draw_corr_map = function(df, method_name, heatmap_color, show_axis_label, show_legend, show_row_group, cor_method = "spearman") {
+  # Pre-defined order for rows and columns (cell types) in the heatmap
+  celltype_order = c(
+    "Goblet", "Basal", "Ciliated", "Fibroblast-Airway", "Mast",
+    "AberrantBasaloid",
+    "ATI", "ATII", "Fibroblast-Alveolar", "Pericyte-Alveolar", "VE_Capillary_A", "Macrophage_Alveolar", "Lymphatic", "VE_Venous",
+    "SMC", "VE_Arterial", "Fibroblast-Adventitial",
+    "B", "Macrophage", "NK", "T", "VE_Capillary_B", "cDC1", "cDC2", "cMonocyte", "ncMonocyte"
+  )
+  
+  # Splitting factors for grouping of cell types in the heatmap
+  split_groups = factor(
+    c(rep('Airway', 5), ' ', rep('Alveoli', 8), rep('Vascular', 3), rep('  ', 9)),
+    levels = c('Airway', ' ', 'Alveoli', 'Vascular', '  ')
+  )
+  
+  # Compute the correlation matrix
+  corr_mtx = cor(df, method = cor_method)
+  
+  # Re-order rows and columns based on the pre-defined order
+  corr_mtx = corr_mtx[celltype_order, celltype_order]
+  
+  # Plot the heatmap
+  ComplexHeatmap::Heatmap(
+    corr_mtx,
+    name = method_name,
+    col = heatmap_color,
+    cluster_columns = FALSE,
+    cluster_rows = FALSE,
+    row_split = split_groups,
+    column_split = split_groups,
+    column_title = method_name, # use it as the figure title
+    row_title = show_row_group,
+    show_row_names = show_axis_label, # show/hide row names
+    show_column_names = show_axis_label, # show/hide column names
+    show_heatmap_legend = show_legend,
+    heatmap_legend_param = list(title = 'Corr'),
+    # Draw rectangles around specific slices/groups in the heatmap
+    layer_fun = function(j, i, x, y, width, height, fill, slice_r, slice_c) {
+      if (slice_r == slice_c & slice_c %in% c(1, 3, 4)) {
+        grid::grid.rect(gp = grid::gpar(lwd = 5, fill = "transparent"))
+      }
+    }
+  )
+}
+
+# define colors for heatmap
+col_palette = colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+color_breaks = c(seq(-1,-0.4,length=50), seq(-0.4,0.4,length=200), seq(0.4,1,length=50))
+heatmap_col = circlize::colorRamp2(color_breaks, rev(col_palette(length(color_breaks))))
+  
+g_list = list()
+
+for (method_name in names(all_res)) {
+  # replace cell type name SMC-Vascular to SMC
+  tmp_df = all_res[[method_name]]
+  colnames(tmp_df)[colnames(tmp_df)=='SMC-Vascular'] = 'SMC'
+  if (method_name != 'SDePER') {
+    g_list[[length(g_list)+1]] = draw_corr_map(tmp_df, method_name, heatmap_col, show_axis_label = F, show_legend = F, show_row_group = NULL, )
+  } else {
+    g_list[[length(g_list)+1]] = draw_corr_map(tmp_df, method_name, heatmap_col, show_axis_label = T, show_legend = F, show_row_group = character(0))
+  }
+}
+
+g_legend = ComplexHeatmap::Legend(col_fun = heatmap_col, title = 'Corr', legend_height = unit(4, 'cm'), grid_width = unit(0.8, 'cm'), labels_gp = grid::gpar(fontsize = 16), title_gp = grid::gpar(fontsize = 18, font = 2))
+
+# combine heatmaps using multipanelfigure
+print(multi_panel_figure(width = c(80, 80, 80, 80, 80, 30), height = c(80, 80), panel_label_type	= 'none') %>%
+  fill_panel(g_list[[1]], column = 1:2, row=1:2) %>%
+  fill_panel(g_list[[2]], column = 3, row = 1) %>%
+  fill_panel(g_list[[3]], column = 4, row = 1) %>%
+  fill_panel(g_list[[4]], column = 5, row = 1) %>%
+  fill_panel(g_list[[5]], column = 3, row = 2) %>%
+  fill_panel(g_list[[6]], column = 4, row = 2) %>%
+  fill_panel(g_list[[7]], column = 5, row = 2) %>%
+  # use grid.grabExpr to capture the output of a graphical expression as a grob, then it can be supported by multipanelfigure
+  fill_panel(grid::grid.grabExpr(grid::grid.draw(g_legend)), column = 6, row = 1:2)
+)
+```
+
+

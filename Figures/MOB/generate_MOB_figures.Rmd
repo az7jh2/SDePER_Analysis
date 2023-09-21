@@ -1,0 +1,646 @@
+---
+title: "Generate figures in Real Data Analysis: MOB"
+author: "Yunqing Liu & Ningshan Li"
+date: "2023/09/01"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+# use ggpubr package (http://www.sthda.com/english/articles/24-ggpubr-publication-ready-plots/81-ggplot2-easy-way-to-mix-multiple-graphs-on-the-same-page/)
+library(dplyr)
+library(ggplot2)
+
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/Spatial/Figures/MOB'
+save_file = FALSE
+
+my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
+method_color = c("SDePER"='#e6194b', "SpatialDWLS"='#3cb44b', "cell2location"='#ffe119', "SPOTlight"='#4363d8', "CARD"='#f58231', "DestVI"='#911eb4', "RCTD"='#46f0f0', "GLRM"='#f032e6')
+anno_color = c("GCL"='#f032e6', "GL"='#bcf60c', "MCL"='#fabebe', "ONL"='#008080')
+mob_color = c("GC"='#e6194b', "M/TC"='#3cb44b', "PGC"='#4363d8', "OSNs"='#911eb4', "EPL-IN"='#f58231')
+
+mob_celltype_marker = c("Penk", "Cdhr1", "Apold1", "S100a5")
+mob_layer_marker = c("GCL"="Penk", "MCL"="Slc17a7", "GL"="Nrsn1", "ONL"="Nr2f2")
+layer_order = c('GCL', 'MCL', 'GL', 'ONL')
+
+impute_methods = c('SDePER', 'CARD')
+impute_dataset = 'MOB'
+impute_diameters = c('80', '114', '160')
+impute_file_types = c('loc', 'celltype_prop', 'gene_norm_exp')
+```
+
+
+# Summary
+
+This R Notebook generates figures for Mouse Olfactory Bulb (**MOB**) dataset in Real Data Analysis section in manuscript.
+
+1. **Inputs**:
+
+  * [`MOB_spatial_spot_nUMI.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/RealData/MOB/MOB_spatial_spot_nUMI.csv): nUMI of all 16,034 genes across all 282 spatial spots in MOB dataset.
+  * [`MOB_all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Figures/MOB/MOB_all_results.rds): cell type deconvolution results of all methods, as well as the cell type annotation in MOB data analysis.
+  * Imputation results of SDePER and CARD at 3 different levels of resolution can be found in folder [MOB](https://zenodo.org/record/8334656/files/MOB.zip) in [10.5281/zenodo.8334655](https://doi.org/10.5281/zenodo.8334655).
+
+2. **Outputs**:
+
+  * Figure 3A. Visualization of MOB dataset
+  * Figure 3B. Visualization of inferred dominant cell type in each spot
+  * Figure 3C. Visualization of inferred cell type proportions in each spot
+  * Figure 3D. Barplot of ARI and purity of all methods
+  * Figure 3E. Heatmap of original and imputed expression of 4 layer-specific marker genes
+  * Figure 3F. Heatmap of average imputed expression of 4 layer-specific marker genes at 80 μm level
+  * Figure 3G. Barplot of ratio of average imputed expression of 4 layer-specific marker genes at 80 μm level
+  * Figure S3. Heatmap of 5 cell type-specific marker genes
+  * Figure S4. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
+  * Figure S5. Heatmap of imputed expression of 4 layer-specific marker genes by SDePER and CARD
+
+
+# Version
+
+```{r}
+version[['version.string']]
+print(sprintf('Package %s version: %s', 'ggplot2', packageVersion('ggplot2')))
+print(sprintf('Package %s version: %s', 'ggpubr', packageVersion('ggpubr')))
+print(sprintf('Package %s version: %s', 'pdfCluster', packageVersion('pdfCluster'))) # ARI function
+print(sprintf('Package %s version: %s', 'funtimes', packageVersion('funtimes'))) # purity function
+print(sprintf('Package %s version: %s', 'CARD', packageVersion('CARD'))) # Visualization function
+```
+
+
+# Read relevant files
+
+## Read gene expression of spatial spots
+
+```{r}
+file_name = file.path(home.dir, 'MOB_spatial_spot_nUMI.csv')
+gene_numi = read.csv(file_name, row.names = 1, check.names = F)
+print(sprintf('load data from %s', file_name))
+print(sprintf('genes: %d, spots: %d', ncol(gene_numi), nrow(gene_numi)))
+
+# transpose it to meet the need of CARD
+gene_numi = as.data.frame(t(gene_numi))
+```
+
+
+## Read estimated cell type proportions by all methods
+
+NOTE: Here we only consider the 278 spatial spots which have cell type annotation.
+
+```{r}
+file_name = file.path(home.dir, 'MOB_all_results.rds')
+all_res = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+
+# check the order of spatial spots and cell types are consistent
+all_spots = row.names(all_res[['Annotation']])
+all_celltypes = colnames(all_res[['SDePER']])
+all_methods = names(all_res)[names(all_res)!='Annotation']
+```
+
+
+Check the order of spots and cell types are consistent before performance evaluation.
+
+```{r}
+for (method_name in all_methods) {
+  stopifnot(all(row.names(all_res[[method_name]]) == all_spots))
+  stopifnot(all(colnames(all_res[[method_name]]) == all_celltypes))
+}
+```
+
+
+Check whether negative values of estimated cell type proportions exist. Replace them as 0.
+
+```{r}
+for (method_name in all_methods) {
+  tmp_df = all_res[[method_name]]
+  for (i in 1:nrow(tmp_df)) {
+    for (j in 1:ncol(tmp_df)) {
+      if (tmp_df[i, j] < 0) {
+        print(sprintf('%s result: row %d (%s) column %d (%s) has negative value %g', method_name, i, row.names(tmp_df)[i], j, colnames(tmp_df)[j], tmp_df[i, j]))
+        # replace them with 0
+        all_res[[method_name]][i, j] = 0
+      }
+    }
+  }
+}
+```
+
+
+Calculate dominant cell type for each spot.
+
+```{r}
+all_res_dominat = list()
+
+for (method_name in all_methods) {
+  tmp_df = all_res[[method_name]]
+  for (i in 1:nrow(tmp_df)) {
+    this_row_max_col = which.max(tmp_df[i, ])
+    tmp_df[i, this_row_max_col] = 1
+    tmp_df[i, -this_row_max_col] = 0
+  }
+  stopifnot(all(rowSums(tmp_df) == 1))
+  all_res_dominat[[method_name]] = tmp_df
+}
+```
+
+
+## Read imputation results by SDePER and CARD
+
+NOTE: In SDePER we define **1 µm = 10 pixels**, and output the imputed spots **at pixel unit**. For MOB, the physical distance between two neighboring spatial spots is 200 µm. So to convert pixel to axis coordinates, we divided the (x,y) locations of imputed spots by 2,000.
+
+NOTE: The imputed gene expressions are sequencing depth normalized values.
+
+```{r}
+# nested list with names are diameter (80/114/160) and data type (celltype/gene/loc)
+imputations = list()
+
+for (method_name in impute_methods) {
+  imputations[[method_name]] = list()
+  for (this_diameter in impute_diameters) {
+    imputations[[method_name]][[this_diameter]] = list()
+    for (this_datatype in impute_file_types) {
+      imputations[[method_name]][[this_diameter]][[this_datatype]] = read.csv(file.path(home.dir,
+                                                                                        sprintf('%s_%s_imputation_results_diameter_%s', impute_dataset, method_name, this_diameter),
+                                                                                        sprintf('%s_impute_diameter_%s_spot_%s.csv', method_name, this_diameter, this_datatype)),
+                                                                              row.names = 1, check.names = F)
+    }
+  }
+}
+
+# check order of spots, NOTE the gene expression dataframe is rows as genes and columns as spots
+for (method_name in names(imputations)) {
+  for (this_diameter in names(imputations[[method_name]])) {
+    print(sprintf('Method %s - imputation at resolution %s μm: spots %d', method_name, this_diameter, nrow(imputations[[method_name]][[this_diameter]][['celltype_prop']])))
+    stopifnot(all(row.names(imputations[[method_name]][[this_diameter]][['celltype_prop']]) == colnames(imputations[[method_name]][[this_diameter]][['gene_norm_exp']])))
+    stopifnot(all(row.names(imputations[[method_name]][[this_diameter]][['celltype_prop']]) == row.names(imputations[[method_name]][[this_diameter]][['loc']])))
+    
+    # convert pixel to axis coordinates by divided by 2000
+    if (method_name == 'SDePER') {
+      imputations[[method_name]][[this_diameter]][['loc']] = imputations[[method_name]][[this_diameter]][['loc']] / 2000
+    }
+  }
+}
+```
+
+
+Annotate the layer of imputed spots based on Euclidean distance. For one imputed spot, its layer annotation is the same as the layer annotation of the closest spot at original resolution. If multiple closest spots with same distance exist, pick the most frequent layer among these spots.
+
+```{r}
+for (method_name in names(imputations)) {
+  for (this_diameter in names(imputations[[method_name]])) {
+    tmp_df = imputations[[method_name]][[this_diameter]][['loc']]
+    tmp_df$anno = ''
+    tmp_dis = as.matrix(pdist::pdist(as.matrix(tmp_df[, c('x', 'y')]), as.matrix(all_res[['Annotation']][, c('x', 'y')])))
+    for (i in 1:nrow(tmp_df)) {
+      # find all spots at original resolution with min distance
+      tmp_ind = which(tmp_dis[i, ] == min(tmp_dis[i, ]))
+      if (length(tmp_ind) == 1) {
+        tmp_df[i, 'anno'] = all_res[['Annotation']][tmp_ind, 'anno']
+      } else {
+        # count frequency
+        tmp_anno_freq = table(all_res[['Annotation']][tmp_ind, 'anno', drop=T])
+        tmp_max_freq_anno = names(tmp_anno_freq[tmp_anno_freq==max(tmp_anno_freq)])
+        if (length(tmp_max_freq_anno) == 1) {
+          tmp_df[i, 'anno'] = tmp_max_freq_anno
+        } else {
+          print(sprintf('WARNING: %s + %s μm: %d-th spot matches %d frequent annotations (%s). Now pick %s', method_name, this_diameter, i, length(tmp_max_freq_anno), paste(tmp_max_freq_anno, collapse = ','), tmp_max_freq_anno[1]))
+          tmp_df[i, 'anno'] = tmp_max_freq_anno[1]
+        }
+      }
+    }
+    imputations[[method_name]][[this_diameter]][['loc']] = tmp_df
+  }
+}
+```
+
+
+Calculate average imputed expression levels of each layer marker gene (*Penk* for GCL, *Slc17a7* for MCL, *Nrsn1* for GL, *Nr2f2* for ONL).
+
+```{r}
+avg_exp_layer = list()
+
+for (method_name in names(imputations)) {
+  avg_exp_layer[[method_name]] == list()
+  for (this_diameter in names(imputations[[method_name]])) {
+    tmp_df = merge(imputations[[method_name]][[this_diameter]][['loc']][, 'anno', drop=F], t(imputations[[method_name]][[this_diameter]][['gene_norm_exp']][unname(mob_layer_marker), ]), by = 'row.names')
+    # calculate average expression of layer markers in each layer
+    tmp_df = tmp_df %>%
+      select(all_of(c('anno', unname(mob_layer_marker)))) %>%
+      filter(anno %in% layer_order) %>%
+      group_by(anno) %>%
+      summarise(across(.cols=everything(), .fns=mean, .names="{.col}"))
+    # standardize expression of each marker gene across all layers to mean 0 and standard deviation 1
+    tmp_df = tidyr::gather(tmp_df, marker, expression, -anno, factor_key=F)
+    tmp_df = tmp_df %>%
+      group_by(marker) %>%
+      mutate(scaled_exp=as.vector(scale(expression)))
+    tmp_df['Method'] = method_name
+    
+    avg_exp_layer[[method_name]][[this_diameter]] = tmp_df
+  }
+}
+```
+
+
+# Evaluate performance of cell type deconvolution methods
+
+We use **ARI** (adjusted Rand index) and **purity** to quantitative assessment of the similarity between the predicted **dominant cell type** and H&E staining image-based annotation.
+
+```{r}
+perform_df = data.frame(matrix(ncol=3, nrow=0))
+colnames(perform_df) = c('Method', 'ARI', 'Purity')
+
+for (method_name in all_methods) {
+  this_ari = pdfCluster::adj.rand.index(all_res[['Annotation']]$anno,
+                                        apply(all_res_dominat[[method_name]], 1, function(row) {
+                                          names(row)[which(row == 1)]}
+                                        ))
+  this_purity = funtimes::purity(all_res[['Annotation']]$anno,
+                                 apply(all_res_dominat[[method_name]], 1, function(row) {
+                                   names(row)[which(row == 1)]}
+                                 ))$pur
+  perform_df[nrow(perform_df)+1, ] = c(method_name, this_ari, this_purity)
+}
+
+perform_df$ARI = as.numeric(perform_df$ARI)
+perform_df$Purity = as.numeric(perform_df$Purity)
+```
+
+
+
+# Draw figures
+
+We use visualization functions in CARD to draw the heatmaps of gene expression and pie chart.
+
+NOTE:
+
+* `CARD.visualize.gene` will **normalize the gene expression within each spot by sequencing depth**, then further **scale expression to [0, 1] across all spots** for better visualization effect. If the input gene expression is already sequencing depth-normalized expression values, it does not hurt to normalize by sequencing depth again.
+* `CARD.visualize.gene` use `geom_point` to draw heatmaps. If the size of the points is smaller than the plotting area allocated for each point, discontinuities or blanks between neighboring points will be observed.
+* but for `geom_tile`, the default tile size is 1, and it only support integer coordinates, so not used here.
+* `CARD.visualize.prop` will **scale proportions of each cell type across all spots to [0, 1]**, which is not what we desire, So we define a custom visualization function with CARD style for visualizing cell type proportions.
+
+
+## Figure 3A. Visualization of MOB dataset
+
+Annotation of 4 annotation layers.
+
+```{r, fig.width=4, fig.height=2}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig3A_MOB_layer_annotation.pdf')
+  cairo_pdf(file_name, height=2, width=4, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+ggplot(all_res[['Annotation']], aes(x=x, y=y, color=anno)) +
+  geom_point(size=2.5) +
+  coord_fixed(ratio = 1) +
+  scale_color_manual(values = anno_color) +
+  theme_classic() +
+  theme(plot.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+        panel.border = element_rect(colour = "grey89", fill = NA, size = 0.5), # add a border to plot
+        axis.text = element_blank(), axis.ticks = element_blank(), axis.title = element_blank(), axis.line = element_blank(),
+        legend.text = element_text(size = 15)) +
+  guides(color = guide_legend(title = NULL))
+```
+
+
+Heatmap of 4 cell type-specific marker genes: *Penk* for GC, *Cdhr1* for M/TC, *Apold1* for PGC, *S100a5* for OSNs.
+
+```{r, fig.width=5, fig.height=4}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig3A_MOB_4celltype_marker_heatmap.pdf')
+  cairo_pdf(file_name, height=4, width=5, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+# CARD visualization functions require spatial gene expression dataframe is raw nUMI counts with rows as genes and columns as spots, as the visualization function will normalize nUMI counts by sequencing depth of spots
+CARD::CARD.visualize.gene(
+  spatial_expression = gene_numi[, rownames(all_res[['Annotation']])],
+  spatial_location = all_res[['Annotation']][, c('x', 'y')],
+  gene.visualize = mob_celltype_marker,
+  colors = NULL,
+  NumCols = 2) + theme(legend.position="right") + guides(color=guide_colourbar(title="Exp")) +
+  geom_point(aes(color=value), size=3, shape=15, position=position_dodge2(width=0.05))
+```
+
+
+## Figure S3. Heatmap of 5 cell type-specific marker genes
+
+Compared with Figure 3A, add *Kit* for EPL-IN.
+
+```{r, fig.width=11, fig.height=3}
+if (save_file) {
+  file_name = file.path(home.dir, 'FigS3_MOB_5celltype_marker_heatmap.pdf')
+  cairo_pdf(file_name, height=3, width=11, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+# CARD visualization functions require spatial gene expression dataframe is raw nUMI counts with rows as genes and columns as spots, as the visualization function will normalize nUMI counts by sequencing depth of spots
+CARD::CARD.visualize.gene(
+  spatial_expression = gene_numi[, rownames(all_res[['Annotation']])],
+  spatial_location = all_res[['Annotation']][, c('x', 'y')],
+  gene.visualize = c(mob_celltype_marker, 'Kit'),
+  colors = NULL,
+  NumCols = 5) + theme(legend.position="right") + guides(color=guide_colourbar(title="Exp")) +
+  geom_point(aes(color=value), size=3, shape=15, position=position_dodge2(width=0.05))
+```
+
+
+## Figure 3B. Visualization of inferred dominant cell type in each spot
+
+```{r, fig.width=10, fig.height=4}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig3B_MOB_piechart_dominant_celltype.pdf')
+  cairo_pdf(file_name, height=4, width=10, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+g_list = list()
+
+for (method_name in all_methods) {
+  g_list[[method_name]] = CARD::CARD.visualize.pie(
+    proportion = all_res_dominat[[method_name]],
+    spatial_location = all_res[['Annotation']][, c('x', 'y')],
+    colors = mob_color) + theme(legend.position="none", title=element_text(face=2, size=12)) + ggtitle(method_name)
+}
+
+# get the legend
+g_list[[1]] = g_list[[1]] + theme(legend.position="right") + scale_fill_manual(values=mob_color, breaks=names(mob_color)) + guides(fill=guide_legend(title="Cell-type"))
+g_legend = cowplot::get_legend(g_list[[1]])
+g_list[[1]] = g_list[[1]] + theme(legend.position="none")
+g_list[[length(g_list)+1]] = g_legend
+
+ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv')
+```
+
+
+## Figure 3C. Visualization of inferred cell type proportions in each spot
+
+```{r, fig.width=10, fig.height=4}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig3C_MOB_piechart_celltype_props.pdf')
+  cairo_pdf(file_name, height=4, width=10, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+g_list = list()
+
+for (method_name in all_methods) {
+  g_list[[method_name]] = CARD::CARD.visualize.pie(
+    proportion = all_res[[method_name]],
+    spatial_location = all_res[['Annotation']][, c('x', 'y')],
+    colors = mob_color) + theme(legend.position="none", title=element_text(face=2, size=12)) + ggtitle(method_name)
+}
+
+# get the legend
+g_list[[1]] = g_list[[1]] + theme(legend.position="right") + scale_fill_manual(values=mob_color, breaks=names(mob_color)) + guides(fill=guide_legend(title="Cell-type"))
+g_legend = cowplot::get_legend(g_list[[1]])
+g_list[[1]] = g_list[[1]] + theme(legend.position="none")
+g_list[[length(g_list)+1]] = g_legend
+
+ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv')
+```
+
+
+## Figure 3D. Barplot of ARI and purity of all methods
+
+```{r, fig.width=5, fig.height=4}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig3D_MOB_barplot_performance.pdf')
+  cairo_pdf(file_name, height=4, width=5, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+plot_df = tidyr::gather(perform_df, measure, value, ARI, Purity)
+plot_df$Method = factor(plot_df$Method, levels = all_methods)
+
+ggplot(plot_df, aes(x=Method, y=value)) +
+  geom_bar(stat="identity", fill="steelblue") +
+  geom_text(aes(label=round(value, 2)), vjust=1.1, size=6, color="white") +
+  theme_classic() +
+  theme(axis.text = element_text(color="black", size=12),
+        strip.text = element_text(size=16),
+        axis.title = element_blank(),
+        axis.text.x = element_text(angle=45, hjust=1)) +
+  facet_wrap(measure~., ncol=1, scales="free_y")
+```
+
+
+## Figure S4. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
+
+```{r, fig.width=14.5, fig.height=6}
+if (save_file) {
+  file_name = file.path(home.dir, 'FigS4_MOB_celltype_prop_heatmap_impute.pdf')
+  cairo_pdf(file_name, height=6, width=14.5, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+# first define a custom function to visualize cell type proportion
+visualize.prop = function(proportion, location, celltypes, NumCols, pointSize=3.0) {
+  
+  stopifnot(all(row.names(proportion) == row.names(location)))
+  
+  plot_data = merge(proportion[, celltypes], location[, c('x', 'y')], by='row.names') %>%
+    select(all_of(c('x', 'y', celltypes)))
+  plot_data = tidyr::gather(plot_data, celltype, prop, all_of(celltypes), factor_key=F)
+  plot_data$celltype = factor(plot_data$celltype, levels = celltypes)
+  
+  g = ggplot(plot_data, aes(x, y)) +
+    geom_point(aes(colour = prop), size = pointSize) +
+    scale_color_gradientn(colours = c("lightblue", "lightyellow", "red"), limits = c(0, 1)) +
+    scale_x_discrete(expand = c(0, 1)) + scale_y_discrete(expand = c(0, 1)) +
+    facet_wrap(~celltype, ncol = NumCols) +
+    coord_fixed() +
+    theme(plot.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
+          panel.background = element_blank(),
+          plot.background = element_blank(),
+          panel.border = element_rect(colour = "grey89", fill=NA, size=0.5),
+          axis.text = element_blank(), axis.ticks = element_blank(), axis.title = element_blank(),
+          legend.title = element_text(size = 14, face = "bold"), legend.text = element_text(size = 11),
+          legend.key = element_rect(colour = "transparent", fill = "white"), legend.key.size = unit(0.45, 'cm'),
+          strip.text = element_text(size = 12, face = "bold"))
+  return(g)
+}
+
+this_pointsize = 1.5
+
+# left panel: SDePER result; right panel: CARD result
+# 1st to 4th row: original resolution, 160, 114, 80 μm
+g_list = list()
+
+for (this_diameter in c('200', '160', '114', '80')) {
+  for (method_name in c('SDePER', 'CARD')) {
+    if (this_diameter == '200') {
+      plot_data = all_res[[method_name]]
+      plot_loc = all_res[['Annotation']][, c('x', 'y')]
+    } else {
+      plot_data = imputations[[method_name]][[this_diameter]][['celltype_prop']]
+      plot_loc = imputations[[method_name]][[this_diameter]][['loc']]
+    }
+    
+    g_list[[length(g_list)+1]] = visualize.prop(plot_data, plot_loc, c("GC", "M/TC", "PGC", "OSNs", "EPL-IN"), 5, this_pointsize) +
+      theme(legend.position="right", plot.subtitle=element_text(size=14)) + labs(subtitle = sprintf("%s μm", this_diameter)) + guides(color=guide_colourbar(title="Proportion"))
+  }
+}
+
+ggpubr::ggarrange(plotlist = g_list, ncol=2, nrow=4, align = 'hv', labels = c('SDePER', 'CARD'), font.label = list(size=18), vjust = 1, hjust = -3.5, common.legend = T, legend = 'right')
+```
+
+
+## Figure 3E. Heatmap of original and imputed expression of 4 layer-specific marker genes
+
+*Penk* for GCL, *Slc17a7* for MCL, *Nrsn1* for GL, *Nr2f2* for ONL.
+
+```{r, fig.width=8, fig.height=7.5}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig3E_MOB_4layer_marker_heatmap_impute.pdf')
+  cairo_pdf(file_name, height=7.5, width=8, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+# CARD visualization functions require spatial gene expression dataframe is raw nUMI counts with rows as genes and columns as spots, as the visualization function will normalize nUMI counts by sequencing depth of spots
+g_list = list()
+# original resolution
+g_list[[1]] = CARD::CARD.visualize.gene(
+  spatial_expression = gene_numi[, rownames(all_res[['Annotation']])],
+  spatial_location = all_res[['Annotation']][, c('x', 'y')],
+  gene.visualize = mob_layer_marker,
+  colors = NULL,
+  NumCols = 4) + theme(legend.position="right") + guides(color=guide_colourbar(title="Exp")) +
+  geom_point(aes(color=value), size=3, shape=15, position=position_dodge2(width=0.05))
+
+# 160, 114, 80 μm
+for (this_diameter in c('160', '114', '80')) {
+  g_list[[length(g_list)+1]] = CARD::CARD.visualize.gene(
+    spatial_expression = imputations[['SDePER']][[this_diameter]][['gene_norm_exp']],
+    spatial_location = imputations[['SDePER']][[this_diameter]][['loc']],
+    gene.visualize = mob_layer_marker,
+    colors = NULL,
+    NumCols = 4) + theme(legend.position="right") + guides(color=guide_colourbar(title="Exp")) +
+    geom_point(aes(color=value), size=3, shape=15, position=position_dodge2(width=0.05)) +
+    labs(subtitle = paste(this_diameter, 'μm', sep=' '))
+}
+
+ggpubr::ggarrange(plotlist = g_list, ncol=1, nrow=4, common.legend = T, legend = 'right', align = 'v')
+```
+
+
+## Figure S5. Heatmap of imputed expression of 4 layer-specific marker genes by SDePER and CARD
+
+*Penk* for GCL, *Slc17a7* for MCL, *Nrsn1* for GL, *Nr2f2* for ONL.
+
+```{r, fig.width=17, fig.height=6}
+if (save_file) {
+  file_name = file.path(home.dir, 'FigS5_MOB_4layer_marker_heatmap_impute_allmethods.pdf')
+  cairo_pdf(file_name, height=6, width=17, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+# CARD visualization functions require spatial gene expression dataframe is raw nUMI counts with rows as genes and columns as spots, as the visualization function will normalize nUMI counts by sequencing depth of spots
+# left panel: SDePER result; right panel: CARD result
+# 1st to 3th row: 160, 114, 80 μm
+g_list = list()
+
+for (this_diameter in c('160', '114', '80')) {
+  for (method_name in c('SDePER', 'CARD')) {
+    g_list[[length(g_list)+1]] = CARD::CARD.visualize.gene(
+      spatial_expression = imputations[[method_name]][[this_diameter]][['gene_norm_exp']],
+      spatial_location = imputations[[method_name]][[this_diameter]][['loc']],
+      gene.visualize = mob_layer_marker,
+      colors = NULL,
+      NumCols = 4) +
+      geom_point(aes(color=value), size=3, shape=15, position=position_dodge2(width=0.05)) +
+      theme(legend.position="right", plot.subtitle=element_text(size=14)) + labs(subtitle = sprintf('%s μm', this_diameter))
+  }
+}
+
+ggpubr::ggarrange(plotlist = g_list, ncol=2, nrow=3, labels = c('SDePER', 'CARD'), font.label = list(size=18), vjust = 1, hjust = -3.5, align = 'hv', common.legend = T, legend = 'right')
+```
+
+
+## Figure 3F. Heatmap of average imputed expression of 4 layer-specific marker genes at 80 μm level
+
+*Penk* for GCL, *Slc17a7* for MCL, *Nrsn1* for GL, *Nr2f2* for ONL.
+
+```{r, fig.width=3.5, fig.height=3}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig3F_MOB_4layer_marker_avgExp_heatmap_80μm.pdf')
+  cairo_pdf(file_name, height=3, width=3.5, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+plot_df = rbind(avg_exp_layer[['SDePER']][['80']], avg_exp_layer[['CARD']][['80']])
+plot_df$anno = factor(plot_df$anno, levels = layer_order)
+plot_df$marker = factor(plot_df$marker, levels = mob_layer_marker)
+plot_df$Method = factor(plot_df$Method, levels = c('SDePER', 'CARD'))
+
+# plot the scaled gene expression
+ggplot(plot_df, aes(x=marker, y=anno, fill=scaled_exp)) +
+  geom_tile() +
+  scale_fill_gradient(low="white", high="red", breaks=c(-1, -0.5, 0, 0.5, 1), labels=c(-1, -0.5, 0, 0.5, 1), name='Exp') +
+  theme_classic() +
+  theme(axis.text = element_text(color="black", size=10), axis.text.x = element_text(angle=45, hjust = 1),
+        axis.line = element_blank(), axis.ticks = element_blank(), axis.title = element_blank(),
+        strip.background = element_rect(size=0), strip.text = element_text(size=14, hjust=0),
+        legend.position = "bottom") +
+  facet_wrap(.~Method, scales = 'free_y')
+```
+
+
+## Figure 3G. Barplot of ratio of average imputed expression of 4 layer-specific marker genes at 80 μm level
+
+*Penk* for GCL, *Slc17a7* for MCL, *Nrsn1* for GL, *Nr2f2* for ONL.
+
+```{r, fig.width=6, fig.height=4}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig3G_MOB_4layer_marker_ratio_barplot_80μm.pdf')
+  cairo_pdf(file_name, height=4, width=6, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+# for each layer marker, calculate the ratio of un-scaled expression in this layer among the expression of all layers
+plot_df = rbind(avg_exp_layer[['SDePER']][['80']], avg_exp_layer[['CARD']][['80']])
+ratio_df = data.frame(matrix(ncol=3, nrow=0))
+colnames(ratio_df) = c('marker', 'Method', 'ratio')
+
+for (method_name in c('SDePER', 'CARD')) {
+  for (this_marker in mob_layer_marker) {
+    this_layer = names(mob_layer_marker)[which(mob_layer_marker==this_marker)]
+    tmp_df =  plot_df %>%
+      filter(Method==method_name & marker==this_marker)
+    stopifnot(nrow(tmp_df) == length(layer_order))
+    this_ratio = tmp_df[tmp_df$anno==this_layer, 'expression', drop=T] / sum(tmp_df$expression)
+    ratio_df[nrow(ratio_df)+1, ] = c(this_marker, method_name, this_ratio)
+  }
+}
+
+ratio_df$marker = factor(ratio_df$marker, levels = mob_layer_marker)
+ratio_df$Method = factor(ratio_df$Method, levels = c('SDePER', 'CARD'))
+ratio_df$ratio = as.numeric(ratio_df$ratio)
+
+ggplot(ratio_df, aes(x=marker, y=ratio, fill=Method)) +
+  geom_bar(stat="identity", color="black", position=position_dodge()) +
+  scale_fill_manual(values = c('SDePER'='#e6194b', 'CARD'='#4363d8')) +
+  geom_text(aes(label = round(ratio, 3)), position = position_dodge(0.9), vjust=1.1, size=4, color="white") +
+  theme_classic() +
+  theme(axis.text.y = element_text(color="black", size=12), axis.text.x = element_text(angle=45, hjust=1, size=14, color="black"),
+        axis.title.x = element_blank(),
+        legend.title = element_blank(), legend.position = "right") +
+  ylab("Ratio")
+```
+
+

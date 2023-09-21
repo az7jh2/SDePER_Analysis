@@ -3,29 +3,29 @@ This folder holds Notebooks of generating simulated dataset, as well as the anal
 
 ## Table of Contents
 
-1. [Simulated spatial transcriptomic dataset](#1-simulated-spatial-transcriptomic-dataset)
+1. [Simulated spatial transcriptomics dataset](#1-simulated-spatial-transcriptomics-dataset)
 
    1.1 [Original STARmap dataset](#11-original-starmap-dataset)
 
-   1.2 [Generate simulated spatial transcriptomic dataset](#12-generate-simulated-spatial-transcriptomic-dataset)
+   1.2 [Generate simulated spatial transcriptomics dataset](#12-generate-simulated-spatial-transcriptomics-dataset)
 
-2. [Reference scRNA-seq dataset for simulated spatial transcriptomic dataset](#2-reference-scrna-seq-dataset-for-simulated-spatial-transcriptomic-dataset)
+2. [Reference scRNA-seq dataset for simulated spatial transcriptomics dataset](#2-reference-scrna-seq-dataset-for-simulated-spatial-transcriptomics-dataset)
 
 3. [Cell type deconvolution analysis](#3-cell-type-deconvolution-analysis)
 
    3.1 [Scenario 1](#31-Scenario-1)
 
-   ​	3.1.1 [Using spatial data as reference for deconvolution](#311-using-spatial-data-as-reference-for-deconvolution)
+   ​	3.1.1 [Using spatial data as reference for deconvolution (internal reference)](#311-using-spatial-data-as-reference-for-deconvolution-internal-reference)
 
-   ​    3.1.2 [Using scRNA-seq data as reference for deconvolution](#312-using-scrna-seq-data-as-reference-for-deconvolution)
+   ​    3.1.2 [Using scRNA-seq data as reference for deconvolution (external reference)](#312-using-scrna-seq-data-as-reference-for-deconvolution-external-reference)
 
    3.2 [Scenario 2](#32-Scenario-2)
 
    3.3 [Scenario 3](#33-Scenario-3)
 
-## 1. Simulated spatial transcriptomic dataset
+## 1. Simulated spatial transcriptomics dataset
 
-We create a **simulated** spatial transcriptomic dataset using **coarse-graining** procedure.
+We create a **simulated** spatial transcriptomics dataset using **coarse-graining** procedure.
 
 ### 1.1 Original STARmap dataset
 
@@ -35,13 +35,13 @@ Original publication see [here](https://www.science.org/doi/10.1126/science.aat5
 
 We download both experiments `20180410-BY3_1kgenes` and `20180505_BY3_1kgenes`, and extract **2,002 cells** across **12 cell types** (see table in reference scRNA-seq section) which overlaps with the paired reference scRNA-seq dataset. **No further filtering on genes or cells** is performed. The physical locations and gene expression profiles (raw nUMIs) of the selected cells are manually curated and saved into a R object [CoarseGrain_Data.rds](Generate_simulation_data/CoarseGrain_Data.rds).
 
-### 1.2 Generate simulated spatial transcriptomic dataset
+### 1.2 Generate simulated spatial transcriptomics dataset
 
 We create square spots of **~51.5 μm** (500×500 pixels) as one spot-like region and finally generate 581 spots, and each spot contains 1 to at most 12 cells (at most 6 different cell types).
 
 Notebook of generating this simulated data is [generate_simulated_spatial_data.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/c60dcb036816bd61b5a8b3752d473a5b591b52b6/Simulation/Generate_simulation_data/generate_simulated_spatial_data.nb.html) under folder [Generate_simulation_data](Generate_simulation_data)
 
-## 2. Reference scRNA-seq dataset for simulated spatial transcriptomic dataset
+## 2. Reference scRNA-seq dataset for simulated spatial transcriptomics dataset
 
 Tasic et al. analysed the gene signature of cells in the **primary visual cortex** and the anterior lateral motor cortex of adult **mouse** using **SMART-Seq** technology.
 
@@ -52,7 +52,7 @@ Raw scRNA-seq data are retrieved in [GSE115746](https://www.ncbi.nlm.nih.gov/geo
 * `GSE115746_cells_exon_counts.csv.gz`: raw nUMI counts of 45,768 genes in 23,178 cells
 * `GSE115746_complete_metadata_28706-cells.csv.gz`: meta data of 28,706 cells
 
-We only use cells from **Primary Visual Cortex** (column `source=Primary Visual Cortex (VISp)` in meta data), and select **12 overlapped cell types** with STARmap spatial transcriptomic data
+We only use cells from **Primary Visual Cortex** (column `source=Primary Visual Cortex (VISp)` in meta data), and select **12 overlapped cell types** with STARmap spatial transcriptomics data
 
 <details>
     <summary><b>Click to show the selected 12 cell types</b></summary>
@@ -133,7 +133,7 @@ After selecting cells by cell types, we **filter out cells without expressions**
 
 ## 3. Cell type deconvolution analysis
 
-We run SDePER in **3 different scenarios**, and the simulated spatial transcriptomic data is the same across all 3 scenarios, but **the reference scRNA-seq data are different**. We use the **cell type annotation file** to control which cells are included in the reference data in analysis. Notebooks of running SDePER and corresponding deconvoluted cell type proportions are listed in folder [Run_SDePER_on_simulation_data](Run_SDePER_on_simulation_data). 
+We run SDePER in **3 different scenarios**, and the simulated spatial transcriptomics data is the same across all 3 scenarios, but **the reference scRNA-seq data are different**. We use the **cell type annotation file** to control which cells are included in the reference data in analysis. Notebooks of running SDePER and corresponding deconvoluted cell type proportions are listed in folder [Run_SDePER_on_simulation_data](Run_SDePER_on_simulation_data). 
 
 ### 3.1 Scenario 1
 
