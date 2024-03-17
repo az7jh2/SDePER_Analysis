@@ -1,0 +1,268 @@
+---
+title: "Generate simulated spatial transcriptomic dataset from scRNA-seq dataset"
+author: "Ningshan Li & Yunqing Liu"
+date: "2024/03/12"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+library(dplyr)
+
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/Spatial/Simulation_seq_based/Generate_simulation_data'
+
+
+my.distinct.colors20 = c("#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe", "#008080", "#9a6324", "#800000", "#aaffc3", "#808000", "#000075", "#808080", "#e6beff", "#ffd8b1", "#000000")
+
+my.distinct.colors40 = c("#00ff00","#ff4500","#00ced1","#556b2f","#a0522d","#8b0000","#808000","#483d8b","#008000","#008080","#4682b4","#000080","#9acd32","#daa520","#7f007f","#8fbc8f","#b03060","#d2b48c","#696969","#ff8c00","#00ff7f","#dc143c","#f4a460","#0000ff","#a020f0","#adff2f","#ff00ff","#1e90ff","#f0e68c","#fa8072","#ffff54","#dda0dd","#87ceeb","#7b68ee","#ee82ee","#98fb98","#7fffd4","#ffb6c1","#dcdcdc","#000000")
+```
+
+
+# Version
+
+```{r}
+version[['version.string']]
+```
+
+
+# Load manually cruated STARmap dataset
+
+This **single-cell resolution** spatial transcriptomics dataset contains two independent experiments on **mouse primary visual cortex** ( [publication](https://www.science.org/doi/10.1126/science.aat5691)), and both experiments are included in our analysis. The physical locations and gene expression profiles (raw nUMIs) of the selected cells are manually curated and saved into a R object [`CoarseGrain_Data.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data/CoarseGrain_Data.rds). After loading data, it's a list containing the meta data (in slot `meta`) and gene raw nUMI (in slot `count`).
+
+Columns in meta data:
+
+* `index`: cell barcode
+* `dat`: 1 or 2, indicating cell is from 1st or 2nd experiment
+* `cluster_name`: cell type annotation
+* `X`, `Y`: physical locations (in pixels) of cells. We manually add a **4500 pixels offset** on `X` coordinate of cells from 1st experiment
+
+We just use the spatial location and cell type annotation in meta data.
+
+```{r}
+file_name = file.path(home.dir, 'CoarseGrain_Data.rds')
+org_data = readRDS(file_name)
+meta_data = org_data$meta
+gene_count = org_data$count
+rm(org_data)
+print(sprintf('load data from %s', file_name))
+
+# first 12 gene names need to exclude the first Character "X"
+for (i in 1:12) {
+  colnames(gene_count)[i] = substr(colnames(gene_count)[i], 2, nchar(colnames(gene_count)[i]))
+}
+```
+
+We only include **2,002 cells** across **12 cell types** which overlaps with the paired reference scRNA-seq dataset. **No further filtering on genes or cells**!
+
+```{r}
+print(sprintf('total %d cells, %d genes', nrow(gene_count), ncol(gene_count)))
+```
+
+
+Number of cells of each select cell type is shown as below.
+
+```{r}
+stopifnot(all(meta_data$index == row.names(gene_count)))
+
+table(as.character(meta_data$cluster_name))
+```
+
+
+# Process scRNA-seq data for generating simulation data
+
+## Load data
+
+For the generation of sequencing-based simulation data, we utilized a scRNA-seq dataset from the **mouse visual cortex**, acquired using the **inDrop** technique ([GSE102827](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE102827)).
+
+* Raw nUMI counts of 25,187 genes in 65,539 cells: [GSE102827_merged_all_raw.csv.gz](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE102827&format=file&file=GSE102827%5Fmerged%5Fall%5Fraw%2Ecsv%2Egz)
+* Cell type annotation of 65,539 cells: [GSE102827_cell_type_assignments.csv.gz](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE102827&format=file&file=GSE102827%5Fcell%5Ftype%5Fassignments%2Ecsv%2Egz)
+
+```{r}
+sc_count = read.csv(file.path(home.dir, 'GSE102827_merged_all_raw.csv'), row.names = 1, check.names = F)
+print(sprintf('total %d cells, %d genes', ncol(sc_count), nrow(sc_count)))
+
+sc_meta = read.csv(file.path(home.dir, 'GSE102827_cell_type_assignments.csv'), row.names = 1, check.names = F)
+print(sprintf('annotation for %d cells', nrow(sc_meta)))
+```
+
+
+## Select cells and curate cell type annotation
+
+We select cells with the **12 cell types** included in study, then rename the cell type names to be consistent with spatial data.
+
+```{r}
+sc_meta = sc_meta[!is.na(sc_meta$celltype), ]
+
+# rename cell type names
+sc_meta[grep("SM", sc_meta$celltype), 'celltype'] = "Smc"
+sc_meta[grep("Endo", sc_meta$celltype), 'celltype'] = "Endo"
+sc_meta[grep("Olig", sc_meta$celltype), 'celltype'] = "Oligo"
+sc_meta[grep("ExcL23", sc_meta$celltype), 'celltype'] = "eL2/3"
+sc_meta[grep("ExcL4", sc_meta$celltype), 'celltype'] = "eL4"
+sc_meta[grep("ExcL5_", sc_meta$celltype), 'celltype'] = "eL5"
+sc_meta[grep("ExcL6", sc_meta$celltype), 'celltype'] = "eL6"
+sc_meta[grep("Micro", sc_meta$celltype), 'celltype'] = "Micro"
+sc_meta[grep("Int_Pv", sc_meta$celltype), 'celltype'] = "PVALB"
+sc_meta[grep("Int_Sst", sc_meta$celltype), 'celltype'] = "SST"
+sc_meta[grep("Int_Vip",sc_meta$celltype), 'celltype'] = "VIP"
+
+# remove cells of other cell types
+sc_meta = sc_meta[sc_meta$celltype %notin% c("Int_Cck", "Int_Npy", "Macrophage", "Hip", "OPC_1", "OPC_2", "Pericyte", "RSP", "Sub"), ]
+
+print(sprintf('remain %d cells', nrow(sc_meta)))
+
+print(table(sc_meta$celltype))
+```
+
+
+# Replace gene expression profiles of STARmap cells with scRNA-seq cells
+
+NOTE: we keep ALL genes.
+
+```{r}
+# data after replacement for generating simulation data
+processed_count = c()
+processed_meta = c()
+
+for (one_celltype in sort(unique(sc_meta$celltype))) {
+  select_meta = meta_data[meta_data$cluster_name==one_celltype, c("X", "Y", "cluster_name", "index")]
+  ncell = nrow(select_meta)
+  select_cell = sample(x=rownames(sc_meta[sc_meta$celltype==one_celltype, ]), size=ncell)
+  # keep all genes, note to transpose it as rows as cells and columns as genes
+  processed_count = rbind(processed_count, t(sc_count[, select_cell]))
+  # replace cell barcodes
+  select_meta$index = select_cell
+  processed_meta = rbind(processed_meta, select_meta)
+}
+
+processed_count = as.data.frame(processed_count)
+stopifnot(all(row.names(processed_count) == processed_meta$index))
+
+print(sprintf('get %d cells, %d genes', nrow(processed_count), ncol(processed_count)))
+```
+
+
+
+# Generate squre pseudo-spots by *coarse-graining*
+
+We defined a square with **500×500** pixels (**~51.5 μm**) as one pseudo-spot, and all cells falling into this square area are considered as cells in this pseudo-spot.
+
+In total we get **581** square pseudo-spots, and each square pseudo-spot contains 1 to at most 12 cells (at most 6 different cell types)
+
+The nUMI count of gene $j$ for a given pseudo-spot consisting of cells $i=1,…,n$ are defined as:
+$$nUMI_j=\frac{∑_i^n (x_{ij}/N_i)} {n} )×1,000$$
+where $x_{ij}$ is nUMI of gene $j$ for cell $i$ and $N_i$ is the sequencing depth (sum of nUMI of all genes) of cell $i$.
+
+```{r}
+#dat:meta.data for cell-level spatial data; count:data.frame of count data for cell-level spatial data
+create_grid<-function(dat,count,x="X",y="Y",index="index",cluster="louvain",breaks=200){
+    seq_depth<-rowSums(count)
+    if(is.factor(dat[,cluster])){dat[,cluster]<-factor(dat[,cluster])}
+    range_x<-range(dat[,x])
+    range_y<-range(dat[,y])
+    x_start<-floor(range_x[1])
+    x_end<-ceiling(range_x[2])
+    grid_x<-seq(x_start,x_end,breaks)
+    y_start<-floor(range_y[1])
+    y_end<-ceiling(range_y[2])
+    grid_y<-seq(y_start,y_end,breaks)
+    grid_table<-ct_table<-data.frame(ncell=numeric(),x=numeric(),y=numeric())
+    #grid_table<-matrix(0,nrow=length(grid_y),ncol=length(grid_x))
+    ct_table<-grid_table
+    spot_exp<-list()
+    #rownames(grid_table)<-grid_y
+    #colnames(grid_table)<-grid_x
+    if(max(grid_x)<x_end){grid_x<-c(grid_x,max(grid_x)+breaks)}
+    if(max(grid_y)<y_end){grid_y<-c(grid_y,max(grid_y)+breaks)}
+    ncell_fov<-nrow(dat)
+    for(i in 1:(length(grid_y)-1)){
+        for(j in 1:(length(grid_x)-1)){
+            fall_id<-which(dat[,x]>=grid_x[j] & dat[,x]<grid_x[j+1] & dat[,y]>=grid_y[i] & dat[,y]<grid_y[i+1])
+            grid_table<-rbind(grid_table,c(ncell=length(fall_id),x=grid_x[j],y=grid_y[i]))
+            ct_table<-rbind(ct_table,c(nct=length(unique(dat[fall_id,cluster])),x=grid_x[j],y=grid_y[i]))
+            spot_exp<-c(spot_exp,list(ceiling(colSums(count[dat[fall_id,index],]/(seq_depth[dat[fall_id,index]]*length(fall_id))*scaler))))
+            names(spot_exp)[length(spot_exp)]<-paste0("x",grid_x[j],"y",grid_y[i])
+            tmp_prop<-data.frame(cbind(t(as.matrix(table(dat[fall_id,cluster])/sum(table(dat[fall_id,cluster])),nrow=1,drop=F)),x=grid_x[j],y=grid_y[i]))
+            if(i==1&j==1){grid_prop=tmp_prop}else(grid_prop=rbind(grid_prop,tmp_prop))
+        }
+    }
+    colnames(grid_table)<-c("ncell","x","y")
+    colnames(ct_table)<-c("nct","x","y")
+    spot_exp_mat<-Reduce(cbind,spot_exp)
+    colnames(spot_exp_mat)<-names(spot_exp)
+    nonempty_cell<-which(grid_table$ncell!=0)
+    grid_table=grid_table[nonempty_cell,]
+    ct_table=ct_table[nonempty_cell,]
+    grid_prop=grid_prop[nonempty_cell,]
+    spot_exp_mat=spot_exp_mat[,nonempty_cell]
+    return(list(ncell_grid=grid_table,nct_grid=ct_table,prop_grid=grid_prop,spatial_exp=spot_exp_mat))
+}
+
+# spatial_exp is the generated coarse graining expression data
+scaler = 1000
+grid_l = 500
+sim_res = create_grid(processed_meta, processed_count, cluster="cluster_name", breaks=grid_l)
+```
+
+
+NOTE: **Locations**, **cell type proportions** and **Adjacency Matrix** of simulated pseudo-spots are kept identical as STARmap-based simulation data.
+
+
+
+# Save generated simulated spatial dataset
+
+## Save nUMI counts of all genes of spatial pseudo-spots
+
+nUMI count of all genes are stored in `sim_res$spatial_exp`, and rows as genes, columns as pseudo-spots. We transpose this matrix into **rows as pseudo-spots and columns as genes**, then save into file [`sim_seq_based_spatial_spot_nUMI.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation_seq_based/Generate_simulation_data/sim_seq_based_spatial_spot_nUMI.csv).
+
+```{r}
+to_save = t(sim_res$spatial_exp)
+to_save[1:5, 1:5]
+write.csv(to_save, 'sim_seq_based_spatial_spot_nUMI.csv')
+print(sprintf('save %d gene nUMIs of %d simulated spatial pseudo-spots into file %s', ncol(to_save), nrow(to_save), 'sim_seq_based_spatial_spot_nUMI.csv'))
+```
+
+
+## Save nUMI counts of GSE102827 scRNA-seq cells
+
+We keep nUMI counts of ALL 25,187 genes in 65,539 cells, only transpose it so that **rows as cells and columns as genes**, and saved into file `GSE102827_scRNA_cell_nUMI.csv`.
+
+```{r}
+t(sc_count[1:5, 1:5])
+write.csv(t(sc_count), 'GSE102827_scRNA_cell_nUMI.csv')
+print(sprintf('save %d gene nUMIs of %d scRNA-seq cells into file %s', nrow(sc_count), ncol(sc_count), 'GSE102827_scRNA_cell_nUMI.csv'))
+```
+
+
+## Save cell type annotation of GSE102827 scRNA-seq cells
+
+NOTE: we only keep those selected 2,002 cells which were used for generating this simulation data, and use it as Internal Reference for cell type deconvolution in Sequencing-based Simulation Analysis.
+
+Cell type annotation of those selected 2,002 cells are stored in `processed_meta$cluster_name`, and saved into file [`GSE102827_scRNA_cell_celltype.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation_seq_based/Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/GSE102827_scRNA_cell_celltype.csv)
+
+```{r}
+to_save = processed_meta['cluster_name']
+row.names(to_save) = processed_meta$index
+colnames(to_save) = 'celltype'
+to_save$celltype = as.character(to_save$celltype)
+to_save[1:5, , drop=F]
+write.csv(to_save, 'GSE102827_scRNA_cell_celltype.csv')
+print(sprintf('save cell type annotation of %d scRNA-seq cells into file %s', nrow(to_save), 'GSE102827_scRNA_cell_celltype.csv'))
+```
+
+
