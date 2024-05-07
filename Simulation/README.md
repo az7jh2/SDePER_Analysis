@@ -143,20 +143,20 @@ Single cells with the **matched 12 cell types** are included as reference.
 
 Single cells from the STARmap dataset are used as reference for deconvolution, therefore it's **free of platform effect**.
 
-* **NO** platform effect removal: see [S1_ref_spatial_SDePER_NO_platform_effect_removal.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_NO_platform_effect_removal.ipynb)
-* **WITH** platform effect removal: see [S1_ref_spatial_SDePER_WITH_platform_effect_removal.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_WITH_platform_effect_removal.ipynb)
+* **NO** platform effect removal by CVAE: see [S1_ref_spatial_SDePER_NO_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_NO_CVAE.ipynb)
+* **WITH** platform effect removal by CVAE: see [S1_ref_spatial_SDePER_WITH_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_WITH_CVAE.ipynb)
 
 #### 3.1.2 Using scRNA-seq data as reference for deconvolution (external reference)
 
 Single cells from the scRNA-seq dataset are used as reference for deconvolution, therefore **platform effect exists**.
 
-* **NO** platform effect removal: see [S1_ref_scRNA_SDePER_NO_platform_effect_removal.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/S1_ref_scRNA_SDePER_NO_platform_effect_removal.ipynb)
-* **WITH** platform effect removal: see [S1_ref_scRNA_SDePER_WITH_platform_effect_removal.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/S1_ref_scRNA_SDePER_WITH_platform_effect_removal.ipynb)
+* **NO** platform effect removal by CVAE: see [S1_ref_scRNA_SDePER_NO_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/S1_ref_scRNA_SDePER_NO_CVAE.ipynb)
+* **WITH** platform effect removal by CVAE: see [S1_ref_scRNA_SDePER_WITH_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/S1_ref_scRNA_SDePER_WITH_CVAE.ipynb)
 
 ### 3.2 Scenario 2
 
-This scenario evaluates the robustness of cell type deconvolution methods where **one actually presented cell type in spatial data is missing in reference data**. Here we **Remove VIP** cell type (*N* = 1,690) which is presented in simulated spatial data from reference data. In this scenario we only run SDePER with scRNA-seq data as reference (see [S2_ref_scRNA_SDePER_WITH_platform_effect_removal.ipynb](Run_SDePER_on_simulation_data/Scenario_2/S2_ref_scRNA_SDePER_WITH_platform_effect_removal.ipynb)) using cell type annotation without VIP for scRNA-seq cells ([ref_scRNA_cell_celltype_removeVIP.csv](Run_SDePER_on_simulation_data/Scenario_2/ref_scRNA_cell_celltype_removeVIP.csv)).
+This scenario evaluates the robustness of cell type deconvolution methods where **one actually presented cell type in spatial data is missing in reference data**. Here we **Remove VIP** cell type (*N* = 1,690) which is presented in simulated spatial data from reference data. In this scenario we only run SDePER with scRNA-seq data as reference (see [S2_ref_scRNA_SDePER_WITH_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_2/S2_ref_scRNA_SDePER_WITH_CVAE.ipynb)) using cell type annotation without VIP for scRNA-seq cells ([ref_scRNA_cell_celltype_removeVIP.csv](Run_SDePER_on_simulation_data/Scenario_2/ref_scRNA_cell_celltype_removeVIP.csv)).
 
 ### 3.3 Scenario 3
 
-This scenario evaluates the robustness of cell type deconvolution methods where **one actually NOT presented cell type in spatial data is adding into reference data**. Here we add an irrelevant cell type **high intronic** (column `cell_subclass=High Intronic` in meta data; *N* = 182) besides the matched 12 cell types. In this scenario we only run SDePER with scRNA-seq data as reference (see  [S3_ref_scRNA_SDePER_WITH_platform_effect_removal.ipynb](Run_SDePER_on_simulation_data/Scenario_3/S3_ref_scRNA_SDePER_WITH_platform_effect_removal.ipynb)) using cell type annotation with high intronic for scRNA-seq cells ([ref_scRNA_cell_celltype_addHigh-Intronic.csv](Run_SDePER_on_simulation_data/Scenario_3/ref_scRNA_cell_celltype_addHigh-Intronic.csv)).
+This scenario evaluates the robustness of cell type deconvolution methods where **one actually NOT presented cell type in spatial data is adding into reference data**. Here we add an irrelevant cell type **high intronic** (column `cell_subclass=High Intronic` in meta data; *N* = 182) besides the matched 12 cell types. In this scenario we only run SDePER with scRNA-seq data as reference (see  [S3_ref_scRNA_SDePER_WITH_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_3/S3_ref_scRNA_SDePER_WITH_CVAE.ipynb)) using cell type annotation with high intronic for scRNA-seq cells ([ref_scRNA_cell_celltype_addHigh-Intronic.csv](Run_SDePER_on_simulation_data/Scenario_3/ref_scRNA_cell_celltype_addHigh-Intronic.csv)).

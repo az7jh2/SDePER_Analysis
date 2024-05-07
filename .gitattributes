@@ -1,4 +1,0 @@
-# If a .gz file is uploaded through GitHub's web interface, it's possible that GitHub treats the file as text rather than binary.
-# This could lead to modifications in the file's data that alter its checksum.
-# enforce Git to treat .gz files as binary to prevent any changes during the commit process
-*.gz binary
