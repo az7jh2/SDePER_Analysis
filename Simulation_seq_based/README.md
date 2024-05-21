@@ -11,20 +11,35 @@ For cell type deconvolution, we employ the scRNA-seq dataset ([GSE102827](https:
 
 Notebooks of running SDePER and corresponding deconvoluted cell type proportions are listed in folder [Run_SDePER_on_simulation_data](Run_SDePER_on_simulation_data). 
 
-### 3.1 Scenario 1
+### 2.1 Scenario 1
 
 Single cells with the **matched 12 cell types** are included as reference.
 
-#### 3.1.1 Using GSE102827 scRNA-seq data as reference for deconvolution (internal reference)
+#### 2.1.1 Using GSE102827 scRNA-seq data as reference for deconvolution (internal reference)
 
 Single cells from the [GSE102827](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE102827) dataset are used as reference for deconvolution, therefore it's **free of platform effect**.
 
 * **NO** platform effect removal by CVAE: see [S1_ref_spatial_SDePER_NO_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_NO_CVAE.ipynb)
 * **WITH** platform effect removal by CVAE: see [S1_ref_spatial_SDePER_WITH_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_WITH_CVAE.ipynb)
 
-#### 3.1.2 Using GSE115746 scRNA-seq data as reference for deconvolution (external reference)
+#### 2.1.2 Using GSE115746 scRNA-seq data as reference for deconvolution (external reference)
 
 Single cells from the [GSE115746](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE115746) scRNA-seq dataset are used as reference for deconvolution, therefore **platform effect exists**.
 
 * **NO** platform effect removal by CVAE: see [S1_ref_scRNA_SDePER_NO_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/S1_ref_scRNA_SDePER_NO_CVAE.ipynb)
 * **WITH** platform effect removal by CVAE: see [S1_ref_scRNA_SDePER_WITH_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/S1_ref_scRNA_SDePER_WITH_CVAE.ipynb)
+
+## 3. Additional simulation with increased cell numbers in simulated spatial spots
+
+In the current sequencing-based simulation, we synthesize spatial spots by aggregating neighboring single cells. This results in spots containing between 1 to 12 cells, with an average of 3.6 cells per spot.
+
+We have also generated two additional simulation datasets with an increased number of cells per spot:
+
+- **3x Setting**: Approximately 3 to 36 cells per spot, with an average of 10.8 cells per spot.
+- **6x Setting**: Approximately 6 to 72 cells per spot, with an average of 21.6 cells per spot.
+
+To access the methods used for generating these datasets, please refer [generate_simulated_spatial_data.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/e9d87754ce22aa950aaab511d902525d685224e9/Simulation_seq_based/Generate_high_density_simulation_data/generate_simulated_spatial_data.nb.html) in folder [Generate_high_density_simulation_data](Generate_high_density_simulation_data).
+
+Notebooks of running SDePER and corresponding deconvoluted cell type proportions are available in folder [Run_SDePER_on_high_density_simulation_data](Run_SDePER_on_high_density_simulation_data).
+
+Results are shown in [generate_seq_based_high_density_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/b5d860af8d1d529247028e906ece719285c71813/Figures/Simulation_seq_based/generate_seq_based_high_density_figures.nb.html).
