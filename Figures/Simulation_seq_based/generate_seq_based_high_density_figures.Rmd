@@ -1,0 +1,298 @@
+---
+title: "Generate figures in *High Density Sequencing-based* Simulation Analysis"
+author: "Ningshan Li"
+date: "2024/05/20"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+# use ggpubr package (http://www.sthda.com/english/articles/24-ggpubr-publication-ready-plots/81-ggplot2-easy-way-to-mix-multiple-graphs-on-the-same-page/)
+library(dplyr)
+library(ggplot2)
+
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/Spatial/Figures/Simulation_seq_based'
+save_file = FALSE
+
+my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
+method_color = c("SDePER"='#e6194b', "SpatialDWLS"='#3cb44b', "cell2location"='#ffe119', "SPOTlight"='#4363d8', "CARD"='#f58231', "DestVI"='#911eb4', "RCTD"='#46f0f0', "GLRM"='#f032e6', "NO_pseudo_spots"='#bcf60c', "NO_LASSO"='#fabebe', "NO_Laplacian"='#008080', "NO_LASSO_Laplacian"='#e6beff', "NO_CVAE_LASSO_Laplacian"='#fffac8', "NO_PlatEffRmv"='#808000', "NO_PlatEffRmv_LASSO_Laplacian"='#aaffc3')
+```
+
+
+# Summary
+
+This R Notebook generates figures in **High Density Sequencing-based Simulation Analysis** section in manuscript.
+
+In addition to sequencing-based simulation analysis (here we referred it as **1x Setting**), we further generated two additional simulation datasets with an increased number of cells per spot:
+
+* **3x Setting**: Approximately 3 to 36 cells per spot, with an average of 10.8 cells per spot.
+* **6x Setting**: Approximately 6 to 72 cells per spot, with an average of 21.6 cells per spot.
+
+
+1.  **Inputs**:
+
+    * [`simulation_seq_based_high_density_all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Figures/Simulation_seq_based/simulation_seq_based_high_density_all_results.rds): cell type deconvolution results of SDePER and GLRM in ALL 3 settings, as well as the ground truth.
+
+2.  **Outputs**:
+
+    * Figure. Boxplot of performance of SDePER and GLRM on *High Density Sequencing-based* simulated data.
+    
+
+# Version
+
+```{r}
+version[['version.string']]
+print(sprintf('Package %s version: %s', 'ggplot2', packageVersion('ggplot2')))
+print(sprintf('Package %s version: %s', 'ggpubr', packageVersion('ggpubr')))
+print(sprintf('Package %s version: %s', 'philentropy', packageVersion('philentropy'))) # JSD function
+```
+
+# Read relevant files
+
+## Read estimated cell type proportions in ablation test
+
+```{r}
+file_name = file.path(home.dir, 'simulation_seq_based_high_density_all_results.rds')
+all_res = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+```
+
+Check the order of spots and cell types are consistent before performance evaluation.
+
+```{r}
+for (dataset in names(all_res)) {
+  for (scenario in names(all_res[[dataset]])) {
+    if (scenario != 'Truth') {
+      for (method_name in names(all_res[[dataset]][[scenario]])) {
+        stopifnot(all(row.names(all_res[[dataset]][[scenario]][[method_name]]) == row.names(all_res[[dataset]][['Truth']])))
+        stopifnot(all(colnames(all_res[[dataset]][[scenario]][[method_name]]) == colnames(all_res[[dataset]][['Truth']])))
+      }
+    }
+  }
+}
+```
+
+Check whether negative values of estimated cell type proportions exist, as negative values may cause error in JSD calculation and got `NaN`. Replace them as 0.
+
+```{r}
+for (scenario in names(all_res)) {
+  if (scenario != 'Truth') {
+    for (method_name in names(all_res[[scenario]])) {
+      tmp_df = all_res[[scenario]][[method_name]]
+      for (i in 1:nrow(tmp_df)) {
+        for (j in 1:ncol(tmp_df)) {
+          if (tmp_df[i, j] < 0) {
+            print(sprintf('%s - %s: %s result: row %d (%s) column %d (%s) has negative value %g', dataset, scenario, method_name, i, row.names(tmp_df)[i], j, colnames(tmp_df)[j], tmp_df[i, j]))
+            # replace them with 0
+            all_res[[dataset]][[scenario]][[method_name]][i, j] = 0
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+
+# Evaluate performance of cell type deconvolution methods
+
+## Calculate spot-wise performance of all methods
+
+4 performance measurements:
+
+* root mean square error (**RMSE**): quantifies the overall estimation accuracy
+* Jensen-Shannon Divergence (**JSD**): assesses similarity between the estimated cell type distribution and ground-truth per spot
+* **Pearson's correlation coefficient**: measures the similarity of estimation to ground-truth
+* false discovery rate (**FDR**): measures how many cell types were falsely predicted to be present
+* false negative rate (**FNR**): measures how many presented cell types were falsely predicted to be not present
+
+```{r}
+binaryPredEvaluation = function(truth, pred) {
+  # Given an array of truth and predictions (either 0 or 1), calculate confusion matrix
+  # convert to factors to ensure get a full 2*2 confusion matrix
+  truth_factor = factor(truth, levels = c(0, 1))
+  pred_factor = factor(pred, levels = c(0, 1))
+  # Generate confusion matrix
+  conf_matrix = table(Actual = truth_factor, Predicted = pred_factor)
+  # Extract elements of the confusion matrix
+  TP = conf_matrix[2, 2]
+  FP = conf_matrix[1, 2]
+  FN = conf_matrix[2, 1]
+  TN = conf_matrix[1, 1]
+  # Calculate FDR (False Discovery Rate)
+  FDR = FP / (TP + FP)
+  # Calculate FNR (False Negative Rate)
+  FNR = FN / (TP + FN)
+  return(c(FDR, FNR))
+}
+
+calcPerformance = function(truth, pred) {
+  # calculate RMSE, JSD, correlation and FDR for each row
+  # inputs are matrix with rows as spots and columns as cell types, order has been checked to be consistent
+  stopifnot(all(row.names(truth) == row.names(pred)))
+  stopifnot(all(colnames(truth) == colnames(pred)))
+  
+  # binary cell type proportions (0:absent; 1:present)
+  truth_binary = truth != 0
+  pred_binary = pred != 0
+  # in-place conversion from bool to 0/1 while keeping dimensions, row names and column names, as `as.numeric()` will "flattern" the original matrix
+  truth_binary[] = as.numeric(truth_binary)
+  pred_binary[] = as.numeric(pred_binary)
+  
+  perform_df = data.frame(matrix(ncol=5, nrow=0))
+  colnames(perform_df) = c('RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
+  
+  for (i in 1:nrow(truth)) {
+    RMSE = sqrt(mean((truth[i,] - pred[i,]) ^ 2))
+    if (sum(pred[i,])>0 & sum(truth[i,])>0) {
+      JSD = philentropy::JSD(rbind(truth[i,], pred[i,]), unit = 'log2', est.prob = 'empirical')
+    } else {
+      JSD = 1
+    }
+    Pearson = cor.test(truth[i,], pred[i,])$estimate
+    tmp = binaryPredEvaluation(truth_binary[i,], pred_binary[i,])
+    FDR = tmp[1]
+    FNR = tmp[2]
+    
+    perform_df[nrow(perform_df)+1, ] = c(RMSE, JSD, Pearson, FDR, FNR)
+  }
+  
+  # also record spot names
+  stopifnot(nrow(perform_df) == nrow(truth))
+  perform_df['Spot'] = row.names(truth)
+  
+  return(perform_df)
+}
+
+
+all_perform = list()
+
+for (scenario in names(all_res)) {
+  if (scenario != 'Truth') {
+    all_perform[[scenario]] = list()
+    for (method_name in names(all_res[[scenario]])) {
+      all_perform[[scenario]][[method_name]] = calcPerformance(as.matrix(all_res[['Truth']]), as.matrix(all_res[[scenario]][[method_name]]))
+    }
+  }
+}
+```
+
+## Summary spot-wise performance into method-wise
+
+```{r}
+perform_raw_df = data.frame(matrix(ncol=10, nrow=0))
+colnames(perform_raw_df) = c('Dataset', 'Scenario', 'Method', 'Reference', 'Spot', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
+
+# calculate median performance across all spatial spots for all methods
+perform_median_df = data.frame(matrix(ncol=9, nrow=0))
+colnames(perform_median_df) = c('Dataset', 'Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')
+
+for (scenario in names(all_res)) {
+  if (scenario == "S1_int_ref") {
+    this_scenario = 'Scenario 1'
+    this_ref = 'Internal'
+  } else if (scenario == "S1_ext_ref") {
+    this_scenario = 'Scenario 1'
+    this_ref = 'External'
+  } else if (scenario == 'S2_ext_ref') {
+    this_scenario = 'Scenario 2'
+    this_ref = 'External'
+  } else {
+    this_scenario = 'Scenario 3'
+    this_ref = 'External'
+  }
+      
+  for (method_name in names(all_perform[[scenario]])) {
+    tmp_df = all_perform[[scenario]][[method_name]]
+    tmp_vec = unlist(strsplit(method_name, '_'))  # recorded method name is SDePER_1x, GLRM_1x, ...
+    tmp_df['Dataset'] = tmp_vec[2]
+    tmp_df['Scenario'] = this_scenario
+    tmp_df['Method'] = tmp_vec[1]
+    tmp_df['Reference'] = this_ref
+    
+    perform_raw_df = rbind(perform_raw_df, tmp_df[, c('Dataset', 'Scenario', 'Method', 'Reference', 'Spot', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')])
+    
+    perform_median_df[nrow(perform_median_df)+1, ] = c(tmp_vec[2], this_scenario, tmp_vec[1], this_ref,
+                                                       round(median(tmp_df$RMSE), 3),
+                                                       round(median(tmp_df$JSD), 3),
+                                                       round(median(tmp_df$Pearson), 3),
+                                                       round(median(tmp_df$FDR), 3),
+                                                       round(median(tmp_df$FNR), 3))
+
+  }
+}
+
+# set method column as factors
+perform_raw_df['Method'] = factor(perform_raw_df$Method, levels = c("SDePER", "GLRM"))
+perform_raw_df['Dataset'] = factor(perform_raw_df$Dataset, levels = c("1x", "3x", "6x"))
+
+
+perform_median_df[, c('Dataset', 'Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')]
+```
+
+
+# Performance on High Density simulation analysis
+
+## Figure. Boxplot of performance of SDePER and GLRM in ALL 3 settings on *High Density Sequencing-based* Simulated Data Scenario 1
+
+```{r, fig.width=6, fig.height=6}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig_high_density_simulation_S1_performance.pdf')
+  cairo_pdf(file_name, height=6, width=6, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+plot_df = perform_raw_df %>%
+  filter(Scenario=='Scenario 1')
+
+g_list = list()
+
+for (perform_ind in c('RMSE', 'Pearson', 'JSD', 'FDR')) {
+  g_list[[perform_ind]] = ggplot(plot_df, aes(x=Dataset, y=.data[[perform_ind]], fill=Method)) +
+                            geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+                            scale_fill_manual(values=method_color) +
+                            theme_classic() +
+                            theme(strip.text = element_text(size=10),
+                                  axis.text = element_text(color="black"),
+                                  axis.ticks.x = element_blank(),
+                                  axis.title.x = element_blank(),
+                                  legend.title = element_blank()) +
+                            facet_grid(~Reference)
+                            
+}
+
+g_list[['Pearson']] = g_list[['Pearson']] + geom_hline(yintercept=0, color="red", linetype="dashed")
+
+ggpubr::ggarrange(plotlist=g_list, ncol=2, nrow=2, common.legend=TRUE, legend="right")
+```
+
+## Addtional boxplot for FNR
+
+```{r, fig.width=4, fig.height=3}
+ggplot(plot_df, aes(x=Dataset, y=FNR, fill=Method)) +
+  geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+  scale_fill_manual(values=method_color) +
+  theme_classic() +
+  theme(strip.text = element_text(size=10),
+        axis.text = element_text(color="black"),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank(),
+        legend.title = element_blank()) +
+        facet_grid(~Reference)
+```
+
