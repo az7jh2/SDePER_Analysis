@@ -2978,8 +2978,9 @@ reference data for simulation analysis</h1>
 <div id="summary" class="section level1" number="1">
 <h1><span class="header-section-number">1</span> Summary</h1>
 <p>We generated internal and external scRNA-seq reference data by
-downsampling the number of cells per cell type. For each cell type, we
-randomly downsampled the number of cells to 5, 10, 20, and 40.</p>
+downsampling the number of cells of cell type <strong>Astro</strong>. We
+randomly downsampled the number of cells to 5, 10, 20, 50, 100 and
+250.</p>
 <p>A smaller number of cells per cell type hinders the generation of a
 robust cell type-specific gene expression profile, and also affects the
 selection of cell type marker genes in differential analysis.</p>
@@ -3004,8 +3005,7 @@ selection of cell type marker genes in differential analysis.</p>
 cells</h2>
 <p>We read cell type annotation of all 2,002 STARmap cells (available at
 <a href="https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/STARmap_cell_celltype.csv">STARmap_cell_celltype.csv</a>),
-and randomly downsampled the number of cells to 5, 10, and 20 due to the
-smaller number of cells in several cell types.</p>
+and randomly downsampled the number of Astro cells.</p>
 <p>The downsampled cell type annotation files are available in <a href="https://github.com/az7jh2/SDePER_Analysis/tree/main/Simulation/Run_SDePER_on_simulation_data_with_downsampled_ref/Scenario_1/ref_spatial">this
 folder</a>.</p>
 <!-- rnb-text-end -->
@@ -3026,7 +3026,7 @@ folder</a>.</p>
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
-<p>Number of cells of each select cell type is shown as below.</p>
+<p>Number of cells of each cell type is shown as below.</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
 <!-- rnb-source-begin eyJkYXRhIjoiYGBgclxudGFibGUoZGYkY2VsbHR5cGUpXG5gYGAifQ== -->
@@ -3042,20 +3042,20 @@ Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP
 </div>
 <div id="downsampling" class="section level2" number="3.2">
 <h2><span class="header-section-number">3.2</span> Downsampling</h2>
-<p>Randomly select 5, 10 and 20 cells for each cell type.</p>
+<p>Randomly selected a specific number of cells to ensure there are 5,
+10, 20, 50, 100 and 250 cells for Astro, respectively.</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZG93bnNhbXBsZV9yZWYgPSBsaXN0KClcbmFsbF9jZWxsdHlwZXMgPSBzb3J0KHVuaXF1ZShkZiRjZWxsdHlwZSkpXG5cbmZvciAobnVtIGluIGMoNSwgMTAsIDIwKSkge1xuICBzZWxlY3RfY2VsbHMgPSBjKClcbiAgZm9yIChvbmVfY2VsbHR5cGUgaW4gYWxsX2NlbGx0eXBlcykge1xuICAgIHNlbGVjdF9jZWxscyA9IGMoc2VsZWN0X2NlbGxzLCBzYW1wbGUocm93Lm5hbWVzKGRmW2RmJGNlbGx0eXBlPT1vbmVfY2VsbHR5cGUsICwgZHJvcD1GXSksIG51bSwgcmVwbGFjZSA9IEYpKVxuICB9XG4gIGRvd25zYW1wbGVfcmVmW1twYXN0ZTAobnVtLCAnY2VsbHMnKV1dID0gZGZbc2VsZWN0X2NlbGxzLCAsIGRyb3A9Rl1cbn1cbmBgYCJ9 -->
-<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>downsample_ref <span class="ot">=</span> <span class="fu">list</span>()</span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>all_celltypes <span class="ot">=</span> <span class="fu">sort</span>(<span class="fu">unique</span>(df<span class="sc">$</span>celltype))</span>
-<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a><span class="cf">for</span> (num <span class="cf">in</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>)) {</span>
-<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>  select_cells <span class="ot">=</span> <span class="fu">c</span>()</span>
-<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>  <span class="cf">for</span> (one_celltype <span class="cf">in</span> all_celltypes) {</span>
-<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>    select_cells <span class="ot">=</span> <span class="fu">c</span>(select_cells, <span class="fu">sample</span>(<span class="fu">row.names</span>(df[df<span class="sc">$</span>celltype<span class="sc">==</span>one_celltype, , <span class="at">drop=</span>F]), num, <span class="at">replace =</span> F))</span>
-<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>  }</span>
-<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>  downsample_ref[[<span class="fu">paste0</span>(num, <span class="st">&#39;cells&#39;</span>)]] <span class="ot">=</span> df[select_cells, , drop<span class="ot">=</span>F]</span>
-<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>}</span></code></pre></div>
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxudGFyZ2V0X2NlbGx0eXBlID0gJ0FzdHJvJ1xuZG93bnNhbXBsZV9yZWYgPSBsaXN0KClcbnRvdGFsX251bSA9IHN1bShkZiRjZWxsdHlwZSA9PSB0YXJnZXRfY2VsbHR5cGUpXG5cbmZvciAobnVtIGluIGMoNSwgMTAsIDIwLCA1MCwgMTAwLCAyNTApKSB7XG4gIHVuc2VsZWN0X251bSA9IHRvdGFsX251bSAtIG51bVxuICB1bnNlbGVjdF9jZWxscyA9IHNhbXBsZShyb3cubmFtZXMoZGZbZGYkY2VsbHR5cGU9PXRhcmdldF9jZWxsdHlwZSwgLCBkcm9wPUZdKSwgdW5zZWxlY3RfbnVtLCByZXBsYWNlID0gRilcbiAgZG93bnNhbXBsZV9yZWZbW3Bhc3RlMChudW0sICdjZWxscycpXV0gPSBkZlshcm93Lm5hbWVzKGRmKSAlaW4lIHVuc2VsZWN0X2NlbGxzLCAsIGRyb3A9Rl1cbn1cbmBgYCJ9 -->
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>target_celltype <span class="ot">=</span> <span class="st">&#39;Astro&#39;</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>downsample_ref <span class="ot">=</span> <span class="fu">list</span>()</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>total_num <span class="ot">=</span> <span class="fu">sum</span>(df<span class="sc">$</span>celltype <span class="sc">==</span> target_celltype)</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a><span class="cf">for</span> (num <span class="cf">in</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>, <span class="dv">50</span>, <span class="dv">100</span>, <span class="dv">250</span>)) {</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>  unselect_num <span class="ot">=</span> total_num <span class="sc">-</span> num</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>  unselect_cells <span class="ot">=</span> <span class="fu">sample</span>(<span class="fu">row.names</span>(df[df<span class="sc">$</span>celltype<span class="sc">==</span>target_celltype, , <span class="at">drop=</span>F]), unselect_num, <span class="at">replace =</span> F)</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>  downsample_ref[[<span class="fu">paste0</span>(num, <span class="st">&#39;cells&#39;</span>)]] <span class="ot">=</span> df[<span class="sc">!</span><span class="fu">row.names</span>(df) <span class="sc">%in%</span> unselect_cells, , drop<span class="ot">=</span>F]</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>}</span></code></pre></div>
 <!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
@@ -3068,36 +3068,51 @@ Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP
 <span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>  <span class="fu">print</span>(<span class="fu">table</span>(downsample_ref[[one_setting]]<span class="sc">$</span>celltype))</span>
 <span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>}</span></code></pre></div>
 <!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiWzFdIFwiNWNlbGxzXCJcblxuQXN0cm8gZUwyLzMgICBlTDQgICBlTDUgICBlTDYgIEVuZG8gTWljcm8gT2xpZ28gUFZBTEIgICBTbWMgICBTU1QgICBWSVAgXG4gICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSBcblsxXSBcIjEwY2VsbHNcIlxuXG5Bc3RybyBlTDIvMyAgIGVMNCAgIGVMNSAgIGVMNiAgRW5kbyBNaWNybyBPbGlnbyBQVkFMQiAgIFNtYyAgIFNTVCAgIFZJUCBcbiAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwIFxuWzFdIFwiMjBjZWxsc1wiXG5cbkFzdHJvIGVMMi8zICAgZUw0ICAgZUw1ICAgZUw2ICBFbmRvIE1pY3JvIE9saWdvIFBWQUxCICAgU21jICAgU1NUICAgVklQIFxuICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgXG4ifQ== -->
+<!-- rnb-output-begin eyJkYXRhIjoiWzFdIFwiNWNlbGxzXCJcblxuQXN0cm8gZUwyLzMgICBlTDQgICBlTDUgICBlTDYgIEVuZG8gTWljcm8gT2xpZ28gUFZBTEIgICBTbWMgICBTU1QgICBWSVAgXG4gICAgNSAgIDI5MiAgIDMyNyAgIDExMCAgIDM2OCAgIDEzNCAgICA2OSAgIDI3OCAgICA2MSAgICA0MiAgICAzMyAgICAyOSBcblsxXSBcIjEwY2VsbHNcIlxuXG5Bc3RybyBlTDIvMyAgIGVMNCAgIGVMNSAgIGVMNiAgRW5kbyBNaWNybyBPbGlnbyBQVkFMQiAgIFNtYyAgIFNTVCAgIFZJUCBcbiAgIDEwICAgMjkyICAgMzI3ICAgMTEwICAgMzY4ICAgMTM0ICAgIDY5ICAgMjc4ICAgIDYxICAgIDQyICAgIDMzICAgIDI5IFxuWzFdIFwiMjBjZWxsc1wiXG5cbkFzdHJvIGVMMi8zICAgZUw0ICAgZUw1ICAgZUw2ICBFbmRvIE1pY3JvIE9saWdvIFBWQUxCICAgU21jICAgU1NUICAgVklQIFxuICAgMjAgICAyOTIgICAzMjcgICAxMTAgICAzNjggICAxMzQgICAgNjkgICAyNzggICAgNjEgICAgNDIgICAgMzMgICAgMjkgXG5bMV0gXCI1MGNlbGxzXCJcblxuQXN0cm8gZUwyLzMgICBlTDQgICBlTDUgICBlTDYgIEVuZG8gTWljcm8gT2xpZ28gUFZBTEIgICBTbWMgICBTU1QgICBWSVAgXG4gICA1MCAgIDI5MiAgIDMyNyAgIDExMCAgIDM2OCAgIDEzNCAgICA2OSAgIDI3OCAgICA2MSAgICA0MiAgICAzMyAgICAyOSBcblsxXSBcIjEwMGNlbGxzXCJcblxuQXN0cm8gZUwyLzMgICBlTDQgICBlTDUgICBlTDYgIEVuZG8gTWljcm8gT2xpZ28gUFZBTEIgICBTbWMgICBTU1QgICBWSVAgXG4gIDEwMCAgIDI5MiAgIDMyNyAgIDExMCAgIDM2OCAgIDEzNCAgICA2OSAgIDI3OCAgICA2MSAgICA0MiAgICAzMyAgICAyOSBcblsxXSBcIjI1MGNlbGxzXCJcblxuQXN0cm8gZUwyLzMgICBlTDQgICBlTDUgICBlTDYgIEVuZG8gTWljcm8gT2xpZ28gUFZBTEIgICBTbWMgICBTU1QgICBWSVAgXG4gIDI1MCAgIDI5MiAgIDMyNyAgIDExMCAgIDM2OCAgIDEzNCAgICA2OSAgIDI3OCAgICA2MSAgICA0MiAgICAzMyAgICAyOSBcbiJ9 -->
 <pre><code>[1] &quot;5cells&quot;
 
 Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
-    5     5     5     5     5     5     5     5     5     5     5     5 
+    5   292   327   110   368   134    69   278    61    42    33    29 
 [1] &quot;10cells&quot;
 
 Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
-   10    10    10    10    10    10    10    10    10    10    10    10 
+   10   292   327   110   368   134    69   278    61    42    33    29 
 [1] &quot;20cells&quot;
 
 Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
-   20    20    20    20    20    20    20    20    20    20    20    20 </code></pre>
+   20   292   327   110   368   134    69   278    61    42    33    29 
+[1] &quot;50cells&quot;
+
+Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
+   50   292   327   110   368   134    69   278    61    42    33    29 
+[1] &quot;100cells&quot;
+
+Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
+  100   292   327   110   368   134    69   278    61    42    33    29 
+[1] &quot;250cells&quot;
+
+Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
+  250   292   327   110   368   134    69   278    61    42    33    29 </code></pre>
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 <p>Save result.</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm9yIChvbmVfc2V0dGluZyBpbiBuYW1lcyhkb3duc2FtcGxlX3JlZikpIHtcbiAgZmlsZV9uYW1lID0gcGFzdGUwKCdTVEFSbWFwX2NlbGxfYW5ub3RhdGlvbl8nLCBvbmVfc2V0dGluZywgJ19wZXJfY2VsbHR5cGUuY3N2JylcbiAgd3JpdGUuY3N2KGRvd25zYW1wbGVfcmVmW1tvbmVfc2V0dGluZ11dLCBmaWxlX25hbWUpXG4gIHByaW50KHNwcmludGYoJ3NhdmUgY2VsbCB0eXBlIGFubm90YXRpb24gdG8gZmlsZSAlcycsIGZpbGVfbmFtZSkpXG59XG5gYGAifQ== -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm9yIChvbmVfc2V0dGluZyBpbiBuYW1lcyhkb3duc2FtcGxlX3JlZikpIHtcbiAgZmlsZV9uYW1lID0gcGFzdGUwKCdTVEFSbWFwX2NlbGxfYW5ub3RhdGlvbl9Bc3Ryb18nLCBvbmVfc2V0dGluZywgJy5jc3YnKVxuICB3cml0ZS5jc3YoZG93bnNhbXBsZV9yZWZbW29uZV9zZXR0aW5nXV0sIGZpbGVfbmFtZSlcbiAgcHJpbnQoc3ByaW50Zignc2F2ZSBjZWxsIHR5cGUgYW5ub3RhdGlvbiB0byBmaWxlICVzJywgZmlsZV9uYW1lKSlcbn1cbmBgYCJ9 -->
 <div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="cf">for</span> (one_setting <span class="cf">in</span> <span class="fu">names</span>(downsample_ref)) {</span>
-<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>  file_name <span class="ot">=</span> <span class="fu">paste0</span>(<span class="st">&#39;STARmap_cell_annotation_&#39;</span>, one_setting, <span class="st">&#39;_per_celltype.csv&#39;</span>)</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>  file_name <span class="ot">=</span> <span class="fu">paste0</span>(<span class="st">&#39;STARmap_cell_annotation_Astro_&#39;</span>, one_setting, <span class="st">&#39;.csv&#39;</span>)</span>
 <span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>  <span class="fu">write.csv</span>(downsample_ref[[one_setting]], file_name)</span>
 <span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>  <span class="fu">print</span>(<span class="fu">sprintf</span>(<span class="st">&#39;save cell type annotation to file %s&#39;</span>, file_name))</span>
 <span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>}</span></code></pre></div>
 <!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiWzFdIFwic2F2ZSBjZWxsIHR5cGUgYW5ub3RhdGlvbiB0byBmaWxlIFNUQVJtYXBfY2VsbF9hbm5vdGF0aW9uXzVjZWxsc19wZXJfY2VsbHR5cGUuY3N2XCJcblsxXSBcInNhdmUgY2VsbCB0eXBlIGFubm90YXRpb24gdG8gZmlsZSBTVEFSbWFwX2NlbGxfYW5ub3RhdGlvbl8xMGNlbGxzX3Blcl9jZWxsdHlwZS5jc3ZcIlxuWzFdIFwic2F2ZSBjZWxsIHR5cGUgYW5ub3RhdGlvbiB0byBmaWxlIFNUQVJtYXBfY2VsbF9hbm5vdGF0aW9uXzIwY2VsbHNfcGVyX2NlbGx0eXBlLmNzdlwiXG4ifQ== -->
-<pre><code>[1] &quot;save cell type annotation to file STARmap_cell_annotation_5cells_per_celltype.csv&quot;
-[1] &quot;save cell type annotation to file STARmap_cell_annotation_10cells_per_celltype.csv&quot;
-[1] &quot;save cell type annotation to file STARmap_cell_annotation_20cells_per_celltype.csv&quot;</code></pre>
+<!-- rnb-output-begin eyJkYXRhIjoiWzFdIFwic2F2ZSBjZWxsIHR5cGUgYW5ub3RhdGlvbiB0byBmaWxlIFNUQVJtYXBfY2VsbF9hbm5vdGF0aW9uX0FzdHJvXzVjZWxscy5jc3ZcIlxuWzFdIFwic2F2ZSBjZWxsIHR5cGUgYW5ub3RhdGlvbiB0byBmaWxlIFNUQVJtYXBfY2VsbF9hbm5vdGF0aW9uX0FzdHJvXzEwY2VsbHMuY3N2XCJcblsxXSBcInNhdmUgY2VsbCB0eXBlIGFubm90YXRpb24gdG8gZmlsZSBTVEFSbWFwX2NlbGxfYW5ub3RhdGlvbl9Bc3Ryb18yMGNlbGxzLmNzdlwiXG5bMV0gXCJzYXZlIGNlbGwgdHlwZSBhbm5vdGF0aW9uIHRvIGZpbGUgU1RBUm1hcF9jZWxsX2Fubm90YXRpb25fQXN0cm9fNTBjZWxscy5jc3ZcIlxuWzFdIFwic2F2ZSBjZWxsIHR5cGUgYW5ub3RhdGlvbiB0byBmaWxlIFNUQVJtYXBfY2VsbF9hbm5vdGF0aW9uX0FzdHJvXzEwMGNlbGxzLmNzdlwiXG5bMV0gXCJzYXZlIGNlbGwgdHlwZSBhbm5vdGF0aW9uIHRvIGZpbGUgU1RBUm1hcF9jZWxsX2Fubm90YXRpb25fQXN0cm9fMjUwY2VsbHMuY3N2XCJcbiJ9 -->
+<pre><code>[1] &quot;save cell type annotation to file STARmap_cell_annotation_Astro_5cells.csv&quot;
+[1] &quot;save cell type annotation to file STARmap_cell_annotation_Astro_10cells.csv&quot;
+[1] &quot;save cell type annotation to file STARmap_cell_annotation_Astro_20cells.csv&quot;
+[1] &quot;save cell type annotation to file STARmap_cell_annotation_Astro_50cells.csv&quot;
+[1] &quot;save cell type annotation to file STARmap_cell_annotation_Astro_100cells.csv&quot;
+[1] &quot;save cell type annotation to file STARmap_cell_annotation_Astro_250cells.csv&quot;</code></pre>
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
@@ -3110,7 +3125,7 @@ Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP
 scRNA-seq cells</h2>
 <p>We read cell type annotation of all 11,835 scRNA-seq cells (available
 at <a href="https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/ref_scRNA_cell_celltype.csv">ref_scRNA_cell_celltype.csv</a>),
-and randomly downsampled the number of cells to 5, 10, 20, and 40.</p>
+and randomly downsampled the number of Astro cells.</p>
 <p>The downsampled cell type annotation files are available in <a href="https://github.com/az7jh2/SDePER_Analysis/tree/main/Simulation/Run_SDePER_on_simulation_data_with_downsampled_ref/Scenario_1/ref_scRNA_seq">this
 folder</a>.</p>
 <!-- rnb-text-end -->
@@ -3131,7 +3146,7 @@ folder</a>.</p>
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
-<p>Number of cells of each select cell type is shown as below.</p>
+<p>Number of cells of each cell type is shown as below.</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
 <!-- rnb-source-begin eyJkYXRhIjoiYGBgclxudGFibGUoZGYkY2VsbHR5cGUpXG5gYGAifQ== -->
@@ -3147,20 +3162,20 @@ Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP
 </div>
 <div id="downsampling-1" class="section level2" number="4.2">
 <h2><span class="header-section-number">4.2</span> Downsampling</h2>
-<p>Randomly select 5, 10, 20, and 40 cells for each cell type.</p>
+<p>Randomly selected a specific number of cells to ensure there are 5,
+10, 20, 50, 100 and 250 cells for Astro, respectively.</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZG93bnNhbXBsZV9yZWYgPSBsaXN0KClcbmFsbF9jZWxsdHlwZXMgPSBzb3J0KHVuaXF1ZShkZiRjZWxsdHlwZSkpXG5cbmZvciAobnVtIGluIGMoNSwgMTAsIDIwLCA0MCkpIHtcbiAgc2VsZWN0X2NlbGxzID0gYygpXG4gIGZvciAob25lX2NlbGx0eXBlIGluIGFsbF9jZWxsdHlwZXMpIHtcbiAgICBzZWxlY3RfY2VsbHMgPSBjKHNlbGVjdF9jZWxscywgc2FtcGxlKHJvdy5uYW1lcyhkZltkZiRjZWxsdHlwZT09b25lX2NlbGx0eXBlLCAsIGRyb3A9Rl0pLCBudW0sIHJlcGxhY2UgPSBGKSlcbiAgfVxuICBkb3duc2FtcGxlX3JlZltbcGFzdGUwKG51bSwgJ2NlbGxzJyldXSA9IGRmW3NlbGVjdF9jZWxscywgLCBkcm9wPUZdXG59XG5gYGAifQ== -->
-<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a>downsample_ref <span class="ot">=</span> <span class="fu">list</span>()</span>
-<span id="cb20-2"><a href="#cb20-2" tabindex="-1"></a>all_celltypes <span class="ot">=</span> <span class="fu">sort</span>(<span class="fu">unique</span>(df<span class="sc">$</span>celltype))</span>
-<span id="cb20-3"><a href="#cb20-3" tabindex="-1"></a></span>
-<span id="cb20-4"><a href="#cb20-4" tabindex="-1"></a><span class="cf">for</span> (num <span class="cf">in</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>, <span class="dv">40</span>)) {</span>
-<span id="cb20-5"><a href="#cb20-5" tabindex="-1"></a>  select_cells <span class="ot">=</span> <span class="fu">c</span>()</span>
-<span id="cb20-6"><a href="#cb20-6" tabindex="-1"></a>  <span class="cf">for</span> (one_celltype <span class="cf">in</span> all_celltypes) {</span>
-<span id="cb20-7"><a href="#cb20-7" tabindex="-1"></a>    select_cells <span class="ot">=</span> <span class="fu">c</span>(select_cells, <span class="fu">sample</span>(<span class="fu">row.names</span>(df[df<span class="sc">$</span>celltype<span class="sc">==</span>one_celltype, , <span class="at">drop=</span>F]), num, <span class="at">replace =</span> F))</span>
-<span id="cb20-8"><a href="#cb20-8" tabindex="-1"></a>  }</span>
-<span id="cb20-9"><a href="#cb20-9" tabindex="-1"></a>  downsample_ref[[<span class="fu">paste0</span>(num, <span class="st">&#39;cells&#39;</span>)]] <span class="ot">=</span> df[select_cells, , drop<span class="ot">=</span>F]</span>
-<span id="cb20-10"><a href="#cb20-10" tabindex="-1"></a>}</span></code></pre></div>
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxudGFyZ2V0X2NlbGx0eXBlID0gJ0FzdHJvJ1xuZG93bnNhbXBsZV9yZWYgPSBsaXN0KClcbnRvdGFsX251bSA9IHN1bShkZiRjZWxsdHlwZSA9PSB0YXJnZXRfY2VsbHR5cGUpXG5cbmZvciAobnVtIGluIGMoNSwgMTAsIDIwLCA1MCwgMTAwLCAyNTApKSB7XG4gIHVuc2VsZWN0X251bSA9IHRvdGFsX251bSAtIG51bVxuICB1bnNlbGVjdF9jZWxscyA9IHNhbXBsZShyb3cubmFtZXMoZGZbZGYkY2VsbHR5cGU9PXRhcmdldF9jZWxsdHlwZSwgLCBkcm9wPUZdKSwgdW5zZWxlY3RfbnVtLCByZXBsYWNlID0gRilcbiAgZG93bnNhbXBsZV9yZWZbW3Bhc3RlMChudW0sICdjZWxscycpXV0gPSBkZlshcm93Lm5hbWVzKGRmKSAlaW4lIHVuc2VsZWN0X2NlbGxzLCAsIGRyb3A9Rl1cbn1cbmBgYCJ9 -->
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a>target_celltype <span class="ot">=</span> <span class="st">&#39;Astro&#39;</span></span>
+<span id="cb20-2"><a href="#cb20-2" tabindex="-1"></a>downsample_ref <span class="ot">=</span> <span class="fu">list</span>()</span>
+<span id="cb20-3"><a href="#cb20-3" tabindex="-1"></a>total_num <span class="ot">=</span> <span class="fu">sum</span>(df<span class="sc">$</span>celltype <span class="sc">==</span> target_celltype)</span>
+<span id="cb20-4"><a href="#cb20-4" tabindex="-1"></a></span>
+<span id="cb20-5"><a href="#cb20-5" tabindex="-1"></a><span class="cf">for</span> (num <span class="cf">in</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>, <span class="dv">50</span>, <span class="dv">100</span>, <span class="dv">250</span>)) {</span>
+<span id="cb20-6"><a href="#cb20-6" tabindex="-1"></a>  unselect_num <span class="ot">=</span> total_num <span class="sc">-</span> num</span>
+<span id="cb20-7"><a href="#cb20-7" tabindex="-1"></a>  unselect_cells <span class="ot">=</span> <span class="fu">sample</span>(<span class="fu">row.names</span>(df[df<span class="sc">$</span>celltype<span class="sc">==</span>target_celltype, , <span class="at">drop=</span>F]), unselect_num, <span class="at">replace =</span> F)</span>
+<span id="cb20-8"><a href="#cb20-8" tabindex="-1"></a>  downsample_ref[[<span class="fu">paste0</span>(num, <span class="st">&#39;cells&#39;</span>)]] <span class="ot">=</span> df[<span class="sc">!</span><span class="fu">row.names</span>(df) <span class="sc">%in%</span> unselect_cells, , drop<span class="ot">=</span>F]</span>
+<span id="cb20-9"><a href="#cb20-9" tabindex="-1"></a>}</span></code></pre></div>
 <!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
@@ -3173,41 +3188,51 @@ Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP
 <span id="cb21-3"><a href="#cb21-3" tabindex="-1"></a>  <span class="fu">print</span>(<span class="fu">table</span>(downsample_ref[[one_setting]]<span class="sc">$</span>celltype))</span>
 <span id="cb21-4"><a href="#cb21-4" tabindex="-1"></a>}</span></code></pre></div>
 <!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiWzFdIFwiNWNlbGxzXCJcblxuQXN0cm8gZUwyLzMgICBlTDQgICBlTDUgICBlTDYgIEVuZG8gTWljcm8gT2xpZ28gUFZBTEIgICBTbWMgICBTU1QgICBWSVAgXG4gICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSAgICAgNSBcblsxXSBcIjEwY2VsbHNcIlxuXG5Bc3RybyBlTDIvMyAgIGVMNCAgIGVMNSAgIGVMNiAgRW5kbyBNaWNybyBPbGlnbyBQVkFMQiAgIFNtYyAgIFNTVCAgIFZJUCBcbiAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwICAgIDEwIFxuWzFdIFwiMjBjZWxsc1wiXG5cbkFzdHJvIGVMMi8zICAgZUw0ICAgZUw1ICAgZUw2ICBFbmRvIE1pY3JvIE9saWdvIFBWQUxCICAgU21jICAgU1NUICAgVklQIFxuICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgICAgMjAgXG5bMV0gXCI0MGNlbGxzXCJcblxuQXN0cm8gZUwyLzMgICBlTDQgICBlTDUgICBlTDYgIEVuZG8gTWljcm8gT2xpZ28gUFZBTEIgICBTbWMgICBTU1QgICBWSVAgXG4gICA0MCAgICA0MCAgICA0MCAgICA0MCAgICA0MCAgICA0MCAgICA0MCAgICA0MCAgICA0MCAgICA0MCAgICA0MCAgICA0MCBcbiJ9 -->
+<!-- rnb-output-begin eyJkYXRhIjoiWzFdIFwiNWNlbGxzXCJcblxuQXN0cm8gZUwyLzMgICBlTDQgICBlTDUgICBlTDYgIEVuZG8gTWljcm8gT2xpZ28gUFZBTEIgICBTbWMgICBTU1QgICBWSVAgXG4gICAgNSAgIDk2OCAgMTM1MCAgMTY3OSAgMjc3MyAgICA3NiAgICA0NCAgICA2MSAgMTIxMSAgICA1NSAgMTU2NyAgMTY5MCBcblsxXSBcIjEwY2VsbHNcIlxuXG5Bc3RybyBlTDIvMyAgIGVMNCAgIGVMNSAgIGVMNiAgRW5kbyBNaWNybyBPbGlnbyBQVkFMQiAgIFNtYyAgIFNTVCAgIFZJUCBcbiAgIDEwICAgOTY4ICAxMzUwICAxNjc5ICAyNzczICAgIDc2ICAgIDQ0ICAgIDYxICAxMjExICAgIDU1ICAxNTY3ICAxNjkwIFxuWzFdIFwiMjBjZWxsc1wiXG5cbkFzdHJvIGVMMi8zICAgZUw0ICAgZUw1ICAgZUw2ICBFbmRvIE1pY3JvIE9saWdvIFBWQUxCICAgU21jICAgU1NUICAgVklQIFxuICAgMjAgICA5NjggIDEzNTAgIDE2NzkgIDI3NzMgICAgNzYgICAgNDQgICAgNjEgIDEyMTEgICAgNTUgIDE1NjcgIDE2OTAgXG5bMV0gXCI1MGNlbGxzXCJcblxuQXN0cm8gZUwyLzMgICBlTDQgICBlTDUgICBlTDYgIEVuZG8gTWljcm8gT2xpZ28gUFZBTEIgICBTbWMgICBTU1QgICBWSVAgXG4gICA1MCAgIDk2OCAgMTM1MCAgMTY3OSAgMjc3MyAgICA3NiAgICA0NCAgICA2MSAgMTIxMSAgICA1NSAgMTU2NyAgMTY5MCBcblsxXSBcIjEwMGNlbGxzXCJcblxuQXN0cm8gZUwyLzMgICBlTDQgICBlTDUgICBlTDYgIEVuZG8gTWljcm8gT2xpZ28gUFZBTEIgICBTbWMgICBTU1QgICBWSVAgXG4gIDEwMCAgIDk2OCAgMTM1MCAgMTY3OSAgMjc3MyAgICA3NiAgICA0NCAgICA2MSAgMTIxMSAgICA1NSAgMTU2NyAgMTY5MCBcblsxXSBcIjI1MGNlbGxzXCJcblxuQXN0cm8gZUwyLzMgICBlTDQgICBlTDUgICBlTDYgIEVuZG8gTWljcm8gT2xpZ28gUFZBTEIgICBTbWMgICBTU1QgICBWSVAgXG4gIDI1MCAgIDk2OCAgMTM1MCAgMTY3OSAgMjc3MyAgICA3NiAgICA0NCAgICA2MSAgMTIxMSAgICA1NSAgMTU2NyAgMTY5MCBcbiJ9 -->
 <pre><code>[1] &quot;5cells&quot;
 
 Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
-    5     5     5     5     5     5     5     5     5     5     5     5 
+    5   968  1350  1679  2773    76    44    61  1211    55  1567  1690 
 [1] &quot;10cells&quot;
 
 Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
-   10    10    10    10    10    10    10    10    10    10    10    10 
+   10   968  1350  1679  2773    76    44    61  1211    55  1567  1690 
 [1] &quot;20cells&quot;
 
 Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
-   20    20    20    20    20    20    20    20    20    20    20    20 
-[1] &quot;40cells&quot;
+   20   968  1350  1679  2773    76    44    61  1211    55  1567  1690 
+[1] &quot;50cells&quot;
 
 Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
-   40    40    40    40    40    40    40    40    40    40    40    40 </code></pre>
+   50   968  1350  1679  2773    76    44    61  1211    55  1567  1690 
+[1] &quot;100cells&quot;
+
+Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
+  100   968  1350  1679  2773    76    44    61  1211    55  1567  1690 
+[1] &quot;250cells&quot;
+
+Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP 
+  250   968  1350  1679  2773    76    44    61  1211    55  1567  1690 </code></pre>
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 <p>Save result.</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm9yIChvbmVfc2V0dGluZyBpbiBuYW1lcyhkb3duc2FtcGxlX3JlZikpIHtcbiAgZmlsZV9uYW1lID0gcGFzdGUwKCdzY1JOQV9jZWxsX2Fubm90YXRpb25fJywgb25lX3NldHRpbmcsICdfcGVyX2NlbGx0eXBlLmNzdicpXG4gIHdyaXRlLmNzdihkb3duc2FtcGxlX3JlZltbb25lX3NldHRpbmddXSwgZmlsZV9uYW1lKVxuICBwcmludChzcHJpbnRmKCdzYXZlIGNlbGwgdHlwZSBhbm5vdGF0aW9uIHRvIGZpbGUgJXMnLCBmaWxlX25hbWUpKVxufVxuYGBgIn0= -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm9yIChvbmVfc2V0dGluZyBpbiBuYW1lcyhkb3duc2FtcGxlX3JlZikpIHtcbiAgZmlsZV9uYW1lID0gcGFzdGUwKCdzY1JOQV9jZWxsX2Fubm90YXRpb25fQXN0cm9fJywgb25lX3NldHRpbmcsICcuY3N2JylcbiAgd3JpdGUuY3N2KGRvd25zYW1wbGVfcmVmW1tvbmVfc2V0dGluZ11dLCBmaWxlX25hbWUpXG4gIHByaW50KHNwcmludGYoJ3NhdmUgY2VsbCB0eXBlIGFubm90YXRpb24gdG8gZmlsZSAlcycsIGZpbGVfbmFtZSkpXG59XG5gYGAifQ== -->
 <div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" tabindex="-1"></a><span class="cf">for</span> (one_setting <span class="cf">in</span> <span class="fu">names</span>(downsample_ref)) {</span>
-<span id="cb23-2"><a href="#cb23-2" tabindex="-1"></a>  file_name <span class="ot">=</span> <span class="fu">paste0</span>(<span class="st">&#39;scRNA_cell_annotation_&#39;</span>, one_setting, <span class="st">&#39;_per_celltype.csv&#39;</span>)</span>
+<span id="cb23-2"><a href="#cb23-2" tabindex="-1"></a>  file_name <span class="ot">=</span> <span class="fu">paste0</span>(<span class="st">&#39;scRNA_cell_annotation_Astro_&#39;</span>, one_setting, <span class="st">&#39;.csv&#39;</span>)</span>
 <span id="cb23-3"><a href="#cb23-3" tabindex="-1"></a>  <span class="fu">write.csv</span>(downsample_ref[[one_setting]], file_name)</span>
 <span id="cb23-4"><a href="#cb23-4" tabindex="-1"></a>  <span class="fu">print</span>(<span class="fu">sprintf</span>(<span class="st">&#39;save cell type annotation to file %s&#39;</span>, file_name))</span>
 <span id="cb23-5"><a href="#cb23-5" tabindex="-1"></a>}</span></code></pre></div>
 <!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiWzFdIFwic2F2ZSBjZWxsIHR5cGUgYW5ub3RhdGlvbiB0byBmaWxlIHNjUk5BX2NlbGxfYW5ub3RhdGlvbl81Y2VsbHNfcGVyX2NlbGx0eXBlLmNzdlwiXG5bMV0gXCJzYXZlIGNlbGwgdHlwZSBhbm5vdGF0aW9uIHRvIGZpbGUgc2NSTkFfY2VsbF9hbm5vdGF0aW9uXzEwY2VsbHNfcGVyX2NlbGx0eXBlLmNzdlwiXG5bMV0gXCJzYXZlIGNlbGwgdHlwZSBhbm5vdGF0aW9uIHRvIGZpbGUgc2NSTkFfY2VsbF9hbm5vdGF0aW9uXzIwY2VsbHNfcGVyX2NlbGx0eXBlLmNzdlwiXG5bMV0gXCJzYXZlIGNlbGwgdHlwZSBhbm5vdGF0aW9uIHRvIGZpbGUgc2NSTkFfY2VsbF9hbm5vdGF0aW9uXzQwY2VsbHNfcGVyX2NlbGx0eXBlLmNzdlwiXG4ifQ== -->
-<pre><code>[1] &quot;save cell type annotation to file scRNA_cell_annotation_5cells_per_celltype.csv&quot;
-[1] &quot;save cell type annotation to file scRNA_cell_annotation_10cells_per_celltype.csv&quot;
-[1] &quot;save cell type annotation to file scRNA_cell_annotation_20cells_per_celltype.csv&quot;
-[1] &quot;save cell type annotation to file scRNA_cell_annotation_40cells_per_celltype.csv&quot;</code></pre>
+<!-- rnb-output-begin eyJkYXRhIjoiWzFdIFwic2F2ZSBjZWxsIHR5cGUgYW5ub3RhdGlvbiB0byBmaWxlIHNjUk5BX2NlbGxfYW5ub3RhdGlvbl9Bc3Ryb181Y2VsbHMuY3N2XCJcblsxXSBcInNhdmUgY2VsbCB0eXBlIGFubm90YXRpb24gdG8gZmlsZSBzY1JOQV9jZWxsX2Fubm90YXRpb25fQXN0cm9fMTBjZWxscy5jc3ZcIlxuWzFdIFwic2F2ZSBjZWxsIHR5cGUgYW5ub3RhdGlvbiB0byBmaWxlIHNjUk5BX2NlbGxfYW5ub3RhdGlvbl9Bc3Ryb18yMGNlbGxzLmNzdlwiXG5bMV0gXCJzYXZlIGNlbGwgdHlwZSBhbm5vdGF0aW9uIHRvIGZpbGUgc2NSTkFfY2VsbF9hbm5vdGF0aW9uX0FzdHJvXzUwY2VsbHMuY3N2XCJcblsxXSBcInNhdmUgY2VsbCB0eXBlIGFubm90YXRpb24gdG8gZmlsZSBzY1JOQV9jZWxsX2Fubm90YXRpb25fQXN0cm9fMTAwY2VsbHMuY3N2XCJcblsxXSBcInNhdmUgY2VsbCB0eXBlIGFubm90YXRpb24gdG8gZmlsZSBzY1JOQV9jZWxsX2Fubm90YXRpb25fQXN0cm9fMjUwY2VsbHMuY3N2XCJcbiJ9 -->
+<pre><code>[1] &quot;save cell type annotation to file scRNA_cell_annotation_Astro_5cells.csv&quot;
+[1] &quot;save cell type annotation to file scRNA_cell_annotation_Astro_10cells.csv&quot;
+[1] &quot;save cell type annotation to file scRNA_cell_annotation_Astro_20cells.csv&quot;
+[1] &quot;save cell type annotation to file scRNA_cell_annotation_Astro_50cells.csv&quot;
+[1] &quot;save cell type annotation to file scRNA_cell_annotation_Astro_100cells.csv&quot;
+[1] &quot;save cell type annotation to file scRNA_cell_annotation_Astro_250cells.csv&quot;</code></pre>
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
@@ -3215,7 +3240,7 @@ Astro eL2/3   eL4   eL5   eL6  Endo Micro Oligo PVALB   Smc   SST   VIP
 </div>
 </div>
 
-<div id="rmd-source-code">LS0tCnRpdGxlOiAiR2VuZXJhdGUgKmRvd25zYW1wbGVkKiBzY1JOQS1zZXEgcmVmZXJlbmNlIGRhdGEgZm9yIHNpbXVsYXRpb24gYW5hbHlzaXMiCmF1dGhvcjogIk5pbmdzaGFuIExpIgpkYXRlOiAiMjAyNC8wNS8yMSIKb3V0cHV0OiAKICBodG1sX25vdGVib29rOgogICAgY29kZV9mb2xkaW5nOiBoaWRlCiAgICBoaWdobGlnaHQ6IHRhbmdvCiAgICBudW1iZXJfc2VjdGlvbnM6IHllcwogICAgdGhlbWU6IHVuaXRlZAogICAgdG9jOiB5ZXMKICAgIHRvY19kZXB0aDogNgogICAgdG9jX2Zsb2F0OiB5ZXMKLS0tCgpgYGB7ciBzZXR1cCwgaW5jbHVkZT1GQUxTRX0Ka25pdHI6Om9wdHNfY2h1bmskc2V0KGVjaG8gPSBUUlVFLCBldmFsID0gVFJVRSwgd2FybmluZyA9IEZBTFNFLCBtZXNzYWdlID0gRkFMU0UsIHJlc3VsdHM9J2hvbGQnLCBmaWcud2lkdGggPSA3LCBmaWcuaGVpZ2h0ID0gNSwgZHBpID0gMzAwKQoKCmxpYnJhcnkoZHBseXIpCmxpYnJhcnkoZ2dwbG90MikKCgpgJW5vdGluJWAgPSBOZWdhdGUoYCVpbiVgKQoKc2V0LnNlZWQoMSkKCmhvbWUuZGlyID0gJy9ob21lL2hpbGwxMDMvRG9jdW1lbnRzL1NwYXRpYWwvU2ltdWxhdGlvbi9HZW5lcmF0ZV9kb3duc2FtcGxlZF9yZWZfZGF0YScKCgpteS5kaXN0aW5jdC5jb2xvcnMyMCA9IGMoIiNlNjE5NGIiLCAiIzNjYjQ0YiIsICIjZmZlMTE5IiwgIiM0MzYzZDgiLCAiI2Y1ODIzMSIsICIjOTExZWI0IiwgIiM0NmYwZjAiLCAiI2YwMzJlNiIsICIjYmNmNjBjIiwgIiNmYWJlYmUiLCAiIzAwODA4MCIsICIjOWE2MzI0IiwgIiM4MDAwMDAiLCAiI2FhZmZjMyIsICIjODA4MDAwIiwgIiMwMDAwNzUiLCAiIzgwODA4MCIsICIjZTZiZWZmIiwgIiNmZmQ4YjEiLCAiIzAwMDAwMCIpCgpteS5kaXN0aW5jdC5jb2xvcnM0MCA9IGMoIiMwMGZmMDAiLCIjZmY0NTAwIiwiIzAwY2VkMSIsIiM1NTZiMmYiLCIjYTA1MjJkIiwiIzhiMDAwMCIsIiM4MDgwMDAiLCIjNDgzZDhiIiwiIzAwODAwMCIsIiMwMDgwODAiLCIjNDY4MmI0IiwiIzAwMDA4MCIsIiM5YWNkMzIiLCIjZGFhNTIwIiwiIzdmMDA3ZiIsIiM4ZmJjOGYiLCIjYjAzMDYwIiwiI2QyYjQ4YyIsIiM2OTY5NjkiLCIjZmY4YzAwIiwiIzAwZmY3ZiIsIiNkYzE0M2MiLCIjZjRhNDYwIiwiIzAwMDBmZiIsIiNhMDIwZjAiLCIjYWRmZjJmIiwiI2ZmMDBmZiIsIiMxZTkwZmYiLCIjZjBlNjhjIiwiI2ZhODA3MiIsIiNmZmZmNTQiLCIjZGRhMGRkIiwiIzg3Y2VlYiIsIiM3YjY4ZWUiLCIjZWU4MmVlIiwiIzk4ZmI5OCIsIiM3ZmZmZDQiLCIjZmZiNmMxIiwiI2RjZGNkYyIsIiMwMDAwMDAiKQpgYGAKCgoKIyBTdW1tYXJ5CgpXZSBnZW5lcmF0ZWQgaW50ZXJuYWwgYW5kIGV4dGVybmFsIHNjUk5BLXNlcSByZWZlcmVuY2UgZGF0YSBieSBkb3duc2FtcGxpbmcgdGhlIG51bWJlciBvZiBjZWxscyBwZXIgY2VsbCB0eXBlLiBGb3IgZWFjaCBjZWxsIHR5cGUsIHdlIHJhbmRvbWx5IGRvd25zYW1wbGVkIHRoZSBudW1iZXIgb2YgY2VsbHMgdG8gNSwgMTAsIDIwLCBhbmQgNDAuCgpBIHNtYWxsZXIgbnVtYmVyIG9mIGNlbGxzIHBlciBjZWxsIHR5cGUgaGluZGVycyB0aGUgZ2VuZXJhdGlvbiBvZiBhIHJvYnVzdCBjZWxsIHR5cGUtc3BlY2lmaWMgZ2VuZSBleHByZXNzaW9uIHByb2ZpbGUsIGFuZCBhbHNvIGFmZmVjdHMgdGhlIHNlbGVjdGlvbiBvZiBjZWxsIHR5cGUgbWFya2VyIGdlbmVzIGluIGRpZmZlcmVudGlhbCBhbmFseXNpcy4KCgoKIyBWZXJzaW9uCgpgYGB7cn0KdmVyc2lvbltbJ3ZlcnNpb24uc3RyaW5nJ11dCmBgYAoKCgojIEludGVybmFsIHJlZmVyZW5jZQoKIyMgTG9hZCBhbGwgU1RBUm1hcCBjZWxscwoKV2UgcmVhZCBjZWxsIHR5cGUgYW5ub3RhdGlvbiBvZiBhbGwgMiwwMDIgU1RBUm1hcCBjZWxscyAoYXZhaWxhYmxlIGF0IFtTVEFSbWFwX2NlbGxfY2VsbHR5cGUuY3N2XShodHRwczovL2dpdGh1Yi5jb20vYXo3amgyL1NEZVBFUl9BbmFseXNpcy9ibG9iL21haW4vU2ltdWxhdGlvbi9SdW5fU0RlUEVSX29uX3NpbXVsYXRpb25fZGF0YS9TY2VuYXJpb18xL3JlZl9zcGF0aWFsL1NUQVJtYXBfY2VsbF9jZWxsdHlwZS5jc3YpKSwgYW5kIHJhbmRvbWx5IGRvd25zYW1wbGVkIHRoZSBudW1iZXIgb2YgY2VsbHMgdG8gNSwgMTAsIGFuZCAyMCBkdWUgdG8gdGhlIHNtYWxsZXIgbnVtYmVyIG9mIGNlbGxzIGluIHNldmVyYWwgY2VsbCB0eXBlcy4KClRoZSBkb3duc2FtcGxlZCBjZWxsIHR5cGUgYW5ub3RhdGlvbiBmaWxlcyBhcmUgYXZhaWxhYmxlIGluIFt0aGlzIGZvbGRlcl0oaHR0cHM6Ly9naXRodWIuY29tL2F6N2poMi9TRGVQRVJfQW5hbHlzaXMvdHJlZS9tYWluL1NpbXVsYXRpb24vUnVuX1NEZVBFUl9vbl9zaW11bGF0aW9uX2RhdGFfd2l0aF9kb3duc2FtcGxlZF9yZWYvU2NlbmFyaW9fMS9yZWZfc3BhdGlhbCkuCgoKYGBge3J9CmZpbGVfbmFtZSA9IGZpbGUucGF0aChob21lLmRpciwgJ1NUQVJtYXBfY2VsbF9jZWxsdHlwZS5jc3YnKQpkZiA9IHJlYWQuY3N2KGZpbGVfbmFtZSwgcm93Lm5hbWVzID0gMSwgY2hlY2submFtZXMgPSBGLCBzdHJpbmdzQXNGYWN0b3JzID0gRikKcHJpbnQoc3ByaW50ZignbG9hZCBkYXRhIGZyb20gJXMnLCBmaWxlX25hbWUpKQpwcmludChzcHJpbnRmKCd0b3RhbCAlZCBjZWxscycsIG5yb3coZGYpKSkKYGBgCgpOdW1iZXIgb2YgY2VsbHMgb2YgZWFjaCBzZWxlY3QgY2VsbCB0eXBlIGlzIHNob3duIGFzIGJlbG93LgoKYGBge3J9CnRhYmxlKGRmJGNlbGx0eXBlKQpgYGAKCgojIyBEb3duc2FtcGxpbmcKClJhbmRvbWx5IHNlbGVjdCA1LCAxMCBhbmQgMjAgY2VsbHMgZm9yIGVhY2ggY2VsbCB0eXBlLgoKYGBge3J9CmRvd25zYW1wbGVfcmVmID0gbGlzdCgpCmFsbF9jZWxsdHlwZXMgPSBzb3J0KHVuaXF1ZShkZiRjZWxsdHlwZSkpCgpmb3IgKG51bSBpbiBjKDUsIDEwLCAyMCkpIHsKICBzZWxlY3RfY2VsbHMgPSBjKCkKICBmb3IgKG9uZV9jZWxsdHlwZSBpbiBhbGxfY2VsbHR5cGVzKSB7CiAgICBzZWxlY3RfY2VsbHMgPSBjKHNlbGVjdF9jZWxscywgc2FtcGxlKHJvdy5uYW1lcyhkZltkZiRjZWxsdHlwZT09b25lX2NlbGx0eXBlLCAsIGRyb3A9Rl0pLCBudW0sIHJlcGxhY2UgPSBGKSkKICB9CiAgZG93bnNhbXBsZV9yZWZbW3Bhc3RlMChudW0sICdjZWxscycpXV0gPSBkZltzZWxlY3RfY2VsbHMsICwgZHJvcD1GXQp9CmBgYAoKCkRvdWJsZSBjaGVjay4KCmBgYHtyfQpmb3IgKG9uZV9zZXR0aW5nIGluIG5hbWVzKGRvd25zYW1wbGVfcmVmKSkgewogIHByaW50KG9uZV9zZXR0aW5nKQogIHByaW50KHRhYmxlKGRvd25zYW1wbGVfcmVmW1tvbmVfc2V0dGluZ11dJGNlbGx0eXBlKSkKfQpgYGAKClNhdmUgcmVzdWx0LgoKYGBge3J9CmZvciAob25lX3NldHRpbmcgaW4gbmFtZXMoZG93bnNhbXBsZV9yZWYpKSB7CiAgZmlsZV9uYW1lID0gcGFzdGUwKCdTVEFSbWFwX2NlbGxfYW5ub3RhdGlvbl8nLCBvbmVfc2V0dGluZywgJ19wZXJfY2VsbHR5cGUuY3N2JykKICB3cml0ZS5jc3YoZG93bnNhbXBsZV9yZWZbW29uZV9zZXR0aW5nXV0sIGZpbGVfbmFtZSkKICBwcmludChzcHJpbnRmKCdzYXZlIGNlbGwgdHlwZSBhbm5vdGF0aW9uIHRvIGZpbGUgJXMnLCBmaWxlX25hbWUpKQp9CmBgYAoKCgojIEV4dGVybmFsIHJlZmVyZW5jZQoKIyMgTG9hZCBhbGwgIFtHU0UxMTU3NDZdKGh0dHBzOi8vd3d3Lm5jYmkubmxtLm5paC5nb3YvZ2VvL3F1ZXJ5L2FjYy5jZ2k/YWNjPUdTRTExNTc0Nikgc2NSTkEtc2VxIGNlbGxzCgpXZSByZWFkIGNlbGwgdHlwZSBhbm5vdGF0aW9uIG9mIGFsbCAxMSw4MzUgc2NSTkEtc2VxIGNlbGxzIChhdmFpbGFibGUgYXQgW3JlZl9zY1JOQV9jZWxsX2NlbGx0eXBlLmNzdl0oaHR0cHM6Ly9naXRodWIuY29tL2F6N2poMi9TRGVQRVJfQW5hbHlzaXMvYmxvYi9tYWluL1NpbXVsYXRpb24vUnVuX1NEZVBFUl9vbl9zaW11bGF0aW9uX2RhdGEvU2NlbmFyaW9fMS9yZWZfc2NSTkFfc2VxL3JlZl9zY1JOQV9jZWxsX2NlbGx0eXBlLmNzdikpLCBhbmQgcmFuZG9tbHkgZG93bnNhbXBsZWQgdGhlIG51bWJlciBvZiBjZWxscyB0byA1LCAxMCwgMjAsIGFuZCA0MC4KClRoZSBkb3duc2FtcGxlZCBjZWxsIHR5cGUgYW5ub3RhdGlvbiBmaWxlcyBhcmUgYXZhaWxhYmxlIGluIFt0aGlzIGZvbGRlcl0oaHR0cHM6Ly9naXRodWIuY29tL2F6N2poMi9TRGVQRVJfQW5hbHlzaXMvdHJlZS9tYWluL1NpbXVsYXRpb24vUnVuX1NEZVBFUl9vbl9zaW11bGF0aW9uX2RhdGFfd2l0aF9kb3duc2FtcGxlZF9yZWYvU2NlbmFyaW9fMS9yZWZfc2NSTkFfc2VxKS4KCgpgYGB7cn0KZmlsZV9uYW1lID0gZmlsZS5wYXRoKGhvbWUuZGlyLCAncmVmX3NjUk5BX2NlbGxfY2VsbHR5cGUuY3N2JykKZGYgPSByZWFkLmNzdihmaWxlX25hbWUsIHJvdy5uYW1lcyA9IDEsIGNoZWNrLm5hbWVzID0gRiwgc3RyaW5nc0FzRmFjdG9ycyA9IEYpCnByaW50KHNwcmludGYoJ2xvYWQgZGF0YSBmcm9tICVzJywgZmlsZV9uYW1lKSkKcHJpbnQoc3ByaW50ZigndG90YWwgJWQgY2VsbHMnLCBucm93KGRmKSkpCmBgYAoKTnVtYmVyIG9mIGNlbGxzIG9mIGVhY2ggc2VsZWN0IGNlbGwgdHlwZSBpcyBzaG93biBhcyBiZWxvdy4KCmBgYHtyfQp0YWJsZShkZiRjZWxsdHlwZSkKYGBgCgoKIyMgRG93bnNhbXBsaW5nCgpSYW5kb21seSBzZWxlY3QgNSwgMTAsIDIwLCBhbmQgNDAgY2VsbHMgZm9yIGVhY2ggY2VsbCB0eXBlLgoKYGBge3J9CmRvd25zYW1wbGVfcmVmID0gbGlzdCgpCmFsbF9jZWxsdHlwZXMgPSBzb3J0KHVuaXF1ZShkZiRjZWxsdHlwZSkpCgpmb3IgKG51bSBpbiBjKDUsIDEwLCAyMCwgNDApKSB7CiAgc2VsZWN0X2NlbGxzID0gYygpCiAgZm9yIChvbmVfY2VsbHR5cGUgaW4gYWxsX2NlbGx0eXBlcykgewogICAgc2VsZWN0X2NlbGxzID0gYyhzZWxlY3RfY2VsbHMsIHNhbXBsZShyb3cubmFtZXMoZGZbZGYkY2VsbHR5cGU9PW9uZV9jZWxsdHlwZSwgLCBkcm9wPUZdKSwgbnVtLCByZXBsYWNlID0gRikpCiAgfQogIGRvd25zYW1wbGVfcmVmW1twYXN0ZTAobnVtLCAnY2VsbHMnKV1dID0gZGZbc2VsZWN0X2NlbGxzLCAsIGRyb3A9Rl0KfQpgYGAKCgpEb3VibGUgY2hlY2suCgpgYGB7cn0KZm9yIChvbmVfc2V0dGluZyBpbiBuYW1lcyhkb3duc2FtcGxlX3JlZikpIHsKICBwcmludChvbmVfc2V0dGluZykKICBwcmludCh0YWJsZShkb3duc2FtcGxlX3JlZltbb25lX3NldHRpbmddXSRjZWxsdHlwZSkpCn0KYGBgCgpTYXZlIHJlc3VsdC4KCmBgYHtyfQpmb3IgKG9uZV9zZXR0aW5nIGluIG5hbWVzKGRvd25zYW1wbGVfcmVmKSkgewogIGZpbGVfbmFtZSA9IHBhc3RlMCgnc2NSTkFfY2VsbF9hbm5vdGF0aW9uXycsIG9uZV9zZXR0aW5nLCAnX3Blcl9jZWxsdHlwZS5jc3YnKQogIHdyaXRlLmNzdihkb3duc2FtcGxlX3JlZltbb25lX3NldHRpbmddXSwgZmlsZV9uYW1lKQogIHByaW50KHNwcmludGYoJ3NhdmUgY2VsbCB0eXBlIGFubm90YXRpb24gdG8gZmlsZSAlcycsIGZpbGVfbmFtZSkpCn0KYGBgCgoK</div>
+<div id="rmd-source-code">LS0tCnRpdGxlOiAiR2VuZXJhdGUgKmRvd25zYW1wbGVkKiBzY1JOQS1zZXEgcmVmZXJlbmNlIGRhdGEgZm9yIHNpbXVsYXRpb24gYW5hbHlzaXMiCmF1dGhvcjogIk5pbmdzaGFuIExpIgpkYXRlOiAiMjAyNC8wNS8yMSIKb3V0cHV0OiAKICBodG1sX25vdGVib29rOgogICAgY29kZV9mb2xkaW5nOiBoaWRlCiAgICBoaWdobGlnaHQ6IHRhbmdvCiAgICBudW1iZXJfc2VjdGlvbnM6IHllcwogICAgdGhlbWU6IHVuaXRlZAogICAgdG9jOiB5ZXMKICAgIHRvY19kZXB0aDogNgogICAgdG9jX2Zsb2F0OiB5ZXMKLS0tCgpgYGB7ciBzZXR1cCwgaW5jbHVkZT1GQUxTRX0Ka25pdHI6Om9wdHNfY2h1bmskc2V0KGVjaG8gPSBUUlVFLCBldmFsID0gVFJVRSwgd2FybmluZyA9IEZBTFNFLCBtZXNzYWdlID0gRkFMU0UsIHJlc3VsdHM9J2hvbGQnLCBmaWcud2lkdGggPSA3LCBmaWcuaGVpZ2h0ID0gNSwgZHBpID0gMzAwKQoKCmxpYnJhcnkoZHBseXIpCmxpYnJhcnkoZ2dwbG90MikKCgpgJW5vdGluJWAgPSBOZWdhdGUoYCVpbiVgKQoKc2V0LnNlZWQoMSkKCmhvbWUuZGlyID0gJy9ob21lL2hpbGwxMDMvRG9jdW1lbnRzL1NwYXRpYWwvU2ltdWxhdGlvbi9HZW5lcmF0ZV9kb3duc2FtcGxlZF9yZWZfZGF0YScKCgpteS5kaXN0aW5jdC5jb2xvcnMyMCA9IGMoIiNlNjE5NGIiLCAiIzNjYjQ0YiIsICIjZmZlMTE5IiwgIiM0MzYzZDgiLCAiI2Y1ODIzMSIsICIjOTExZWI0IiwgIiM0NmYwZjAiLCAiI2YwMzJlNiIsICIjYmNmNjBjIiwgIiNmYWJlYmUiLCAiIzAwODA4MCIsICIjOWE2MzI0IiwgIiM4MDAwMDAiLCAiI2FhZmZjMyIsICIjODA4MDAwIiwgIiMwMDAwNzUiLCAiIzgwODA4MCIsICIjZTZiZWZmIiwgIiNmZmQ4YjEiLCAiIzAwMDAwMCIpCgpteS5kaXN0aW5jdC5jb2xvcnM0MCA9IGMoIiMwMGZmMDAiLCIjZmY0NTAwIiwiIzAwY2VkMSIsIiM1NTZiMmYiLCIjYTA1MjJkIiwiIzhiMDAwMCIsIiM4MDgwMDAiLCIjNDgzZDhiIiwiIzAwODAwMCIsIiMwMDgwODAiLCIjNDY4MmI0IiwiIzAwMDA4MCIsIiM5YWNkMzIiLCIjZGFhNTIwIiwiIzdmMDA3ZiIsIiM4ZmJjOGYiLCIjYjAzMDYwIiwiI2QyYjQ4YyIsIiM2OTY5NjkiLCIjZmY4YzAwIiwiIzAwZmY3ZiIsIiNkYzE0M2MiLCIjZjRhNDYwIiwiIzAwMDBmZiIsIiNhMDIwZjAiLCIjYWRmZjJmIiwiI2ZmMDBmZiIsIiMxZTkwZmYiLCIjZjBlNjhjIiwiI2ZhODA3MiIsIiNmZmZmNTQiLCIjZGRhMGRkIiwiIzg3Y2VlYiIsIiM3YjY4ZWUiLCIjZWU4MmVlIiwiIzk4ZmI5OCIsIiM3ZmZmZDQiLCIjZmZiNmMxIiwiI2RjZGNkYyIsIiMwMDAwMDAiKQpgYGAKCgoKIyBTdW1tYXJ5CgpXZSBnZW5lcmF0ZWQgaW50ZXJuYWwgYW5kIGV4dGVybmFsIHNjUk5BLXNlcSByZWZlcmVuY2UgZGF0YSBieSBkb3duc2FtcGxpbmcgdGhlIG51bWJlciBvZiBjZWxscyBvZiBjZWxsIHR5cGUgKipBc3RybyoqLiBXZSByYW5kb21seSBkb3duc2FtcGxlZCB0aGUgbnVtYmVyIG9mIGNlbGxzIHRvIDUsIDEwLCAyMCwgNTAsIDEwMCBhbmQgMjUwLgoKQSBzbWFsbGVyIG51bWJlciBvZiBjZWxscyBwZXIgY2VsbCB0eXBlIGhpbmRlcnMgdGhlIGdlbmVyYXRpb24gb2YgYSByb2J1c3QgY2VsbCB0eXBlLXNwZWNpZmljIGdlbmUgZXhwcmVzc2lvbiBwcm9maWxlLCBhbmQgYWxzbyBhZmZlY3RzIHRoZSBzZWxlY3Rpb24gb2YgY2VsbCB0eXBlIG1hcmtlciBnZW5lcyBpbiBkaWZmZXJlbnRpYWwgYW5hbHlzaXMuCgoKCiMgVmVyc2lvbgoKYGBge3J9CnZlcnNpb25bWyd2ZXJzaW9uLnN0cmluZyddXQpgYGAKCgoKIyBJbnRlcm5hbCByZWZlcmVuY2UKCiMjIExvYWQgYWxsIFNUQVJtYXAgY2VsbHMKCldlIHJlYWQgY2VsbCB0eXBlIGFubm90YXRpb24gb2YgYWxsIDIsMDAyIFNUQVJtYXAgY2VsbHMgKGF2YWlsYWJsZSBhdCBbU1RBUm1hcF9jZWxsX2NlbGx0eXBlLmNzdl0oaHR0cHM6Ly9naXRodWIuY29tL2F6N2poMi9TRGVQRVJfQW5hbHlzaXMvYmxvYi9tYWluL1NpbXVsYXRpb24vUnVuX1NEZVBFUl9vbl9zaW11bGF0aW9uX2RhdGEvU2NlbmFyaW9fMS9yZWZfc3BhdGlhbC9TVEFSbWFwX2NlbGxfY2VsbHR5cGUuY3N2KSksIGFuZCByYW5kb21seSBkb3duc2FtcGxlZCB0aGUgbnVtYmVyIG9mIEFzdHJvIGNlbGxzLgoKVGhlIGRvd25zYW1wbGVkIGNlbGwgdHlwZSBhbm5vdGF0aW9uIGZpbGVzIGFyZSBhdmFpbGFibGUgaW4gW3RoaXMgZm9sZGVyXShodHRwczovL2dpdGh1Yi5jb20vYXo3amgyL1NEZVBFUl9BbmFseXNpcy90cmVlL21haW4vU2ltdWxhdGlvbi9SdW5fU0RlUEVSX29uX3NpbXVsYXRpb25fZGF0YV93aXRoX2Rvd25zYW1wbGVkX3JlZi9TY2VuYXJpb18xL3JlZl9zcGF0aWFsKS4KCgpgYGB7cn0KZmlsZV9uYW1lID0gZmlsZS5wYXRoKGhvbWUuZGlyLCAnU1RBUm1hcF9jZWxsX2NlbGx0eXBlLmNzdicpCmRmID0gcmVhZC5jc3YoZmlsZV9uYW1lLCByb3cubmFtZXMgPSAxLCBjaGVjay5uYW1lcyA9IEYsIHN0cmluZ3NBc0ZhY3RvcnMgPSBGKQpwcmludChzcHJpbnRmKCdsb2FkIGRhdGEgZnJvbSAlcycsIGZpbGVfbmFtZSkpCnByaW50KHNwcmludGYoJ3RvdGFsICVkIGNlbGxzJywgbnJvdyhkZikpKQpgYGAKCk51bWJlciBvZiBjZWxscyBvZiBlYWNoIGNlbGwgdHlwZSBpcyBzaG93biBhcyBiZWxvdy4KCmBgYHtyfQp0YWJsZShkZiRjZWxsdHlwZSkKYGBgCgoKIyMgRG93bnNhbXBsaW5nCgpSYW5kb21seSBzZWxlY3RlZCBhIHNwZWNpZmljIG51bWJlciBvZiBjZWxscyB0byBlbnN1cmUgdGhlcmUgYXJlIDUsIDEwLCAyMCwgNTAsIDEwMCBhbmQgMjUwIGNlbGxzIGZvciBBc3RybywgcmVzcGVjdGl2ZWx5LgoKYGBge3J9CnRhcmdldF9jZWxsdHlwZSA9ICdBc3RybycKZG93bnNhbXBsZV9yZWYgPSBsaXN0KCkKdG90YWxfbnVtID0gc3VtKGRmJGNlbGx0eXBlID09IHRhcmdldF9jZWxsdHlwZSkKCmZvciAobnVtIGluIGMoNSwgMTAsIDIwLCA1MCwgMTAwLCAyNTApKSB7CiAgdW5zZWxlY3RfbnVtID0gdG90YWxfbnVtIC0gbnVtCiAgdW5zZWxlY3RfY2VsbHMgPSBzYW1wbGUocm93Lm5hbWVzKGRmW2RmJGNlbGx0eXBlPT10YXJnZXRfY2VsbHR5cGUsICwgZHJvcD1GXSksIHVuc2VsZWN0X251bSwgcmVwbGFjZSA9IEYpCiAgZG93bnNhbXBsZV9yZWZbW3Bhc3RlMChudW0sICdjZWxscycpXV0gPSBkZlshcm93Lm5hbWVzKGRmKSAlaW4lIHVuc2VsZWN0X2NlbGxzLCAsIGRyb3A9Rl0KfQpgYGAKCgpEb3VibGUgY2hlY2suCgpgYGB7cn0KZm9yIChvbmVfc2V0dGluZyBpbiBuYW1lcyhkb3duc2FtcGxlX3JlZikpIHsKICBwcmludChvbmVfc2V0dGluZykKICBwcmludCh0YWJsZShkb3duc2FtcGxlX3JlZltbb25lX3NldHRpbmddXSRjZWxsdHlwZSkpCn0KYGBgCgpTYXZlIHJlc3VsdC4KCmBgYHtyfQpmb3IgKG9uZV9zZXR0aW5nIGluIG5hbWVzKGRvd25zYW1wbGVfcmVmKSkgewogIGZpbGVfbmFtZSA9IHBhc3RlMCgnU1RBUm1hcF9jZWxsX2Fubm90YXRpb25fQXN0cm9fJywgb25lX3NldHRpbmcsICcuY3N2JykKICB3cml0ZS5jc3YoZG93bnNhbXBsZV9yZWZbW29uZV9zZXR0aW5nXV0sIGZpbGVfbmFtZSkKICBwcmludChzcHJpbnRmKCdzYXZlIGNlbGwgdHlwZSBhbm5vdGF0aW9uIHRvIGZpbGUgJXMnLCBmaWxlX25hbWUpKQp9CmBgYAoKCgojIEV4dGVybmFsIHJlZmVyZW5jZQoKIyMgTG9hZCBhbGwgIFtHU0UxMTU3NDZdKGh0dHBzOi8vd3d3Lm5jYmkubmxtLm5paC5nb3YvZ2VvL3F1ZXJ5L2FjYy5jZ2k/YWNjPUdTRTExNTc0Nikgc2NSTkEtc2VxIGNlbGxzCgpXZSByZWFkIGNlbGwgdHlwZSBhbm5vdGF0aW9uIG9mIGFsbCAxMSw4MzUgc2NSTkEtc2VxIGNlbGxzIChhdmFpbGFibGUgYXQgW3JlZl9zY1JOQV9jZWxsX2NlbGx0eXBlLmNzdl0oaHR0cHM6Ly9naXRodWIuY29tL2F6N2poMi9TRGVQRVJfQW5hbHlzaXMvYmxvYi9tYWluL1NpbXVsYXRpb24vUnVuX1NEZVBFUl9vbl9zaW11bGF0aW9uX2RhdGEvU2NlbmFyaW9fMS9yZWZfc2NSTkFfc2VxL3JlZl9zY1JOQV9jZWxsX2NlbGx0eXBlLmNzdikpLCBhbmQgcmFuZG9tbHkgZG93bnNhbXBsZWQgdGhlIG51bWJlciBvZiBBc3RybyBjZWxscy4KClRoZSBkb3duc2FtcGxlZCBjZWxsIHR5cGUgYW5ub3RhdGlvbiBmaWxlcyBhcmUgYXZhaWxhYmxlIGluIFt0aGlzIGZvbGRlcl0oaHR0cHM6Ly9naXRodWIuY29tL2F6N2poMi9TRGVQRVJfQW5hbHlzaXMvdHJlZS9tYWluL1NpbXVsYXRpb24vUnVuX1NEZVBFUl9vbl9zaW11bGF0aW9uX2RhdGFfd2l0aF9kb3duc2FtcGxlZF9yZWYvU2NlbmFyaW9fMS9yZWZfc2NSTkFfc2VxKS4KCgpgYGB7cn0KZmlsZV9uYW1lID0gZmlsZS5wYXRoKGhvbWUuZGlyLCAncmVmX3NjUk5BX2NlbGxfY2VsbHR5cGUuY3N2JykKZGYgPSByZWFkLmNzdihmaWxlX25hbWUsIHJvdy5uYW1lcyA9IDEsIGNoZWNrLm5hbWVzID0gRiwgc3RyaW5nc0FzRmFjdG9ycyA9IEYpCnByaW50KHNwcmludGYoJ2xvYWQgZGF0YSBmcm9tICVzJywgZmlsZV9uYW1lKSkKcHJpbnQoc3ByaW50ZigndG90YWwgJWQgY2VsbHMnLCBucm93KGRmKSkpCmBgYAoKTnVtYmVyIG9mIGNlbGxzIG9mIGVhY2ggY2VsbCB0eXBlIGlzIHNob3duIGFzIGJlbG93LgoKYGBge3J9CnRhYmxlKGRmJGNlbGx0eXBlKQpgYGAKCgojIyBEb3duc2FtcGxpbmcKClJhbmRvbWx5IHNlbGVjdGVkIGEgc3BlY2lmaWMgbnVtYmVyIG9mIGNlbGxzIHRvIGVuc3VyZSB0aGVyZSBhcmUgNSwgMTAsIDIwLCA1MCwgMTAwIGFuZCAyNTAgY2VsbHMgZm9yIEFzdHJvLCByZXNwZWN0aXZlbHkuCgpgYGB7cn0KdGFyZ2V0X2NlbGx0eXBlID0gJ0FzdHJvJwpkb3duc2FtcGxlX3JlZiA9IGxpc3QoKQp0b3RhbF9udW0gPSBzdW0oZGYkY2VsbHR5cGUgPT0gdGFyZ2V0X2NlbGx0eXBlKQoKZm9yIChudW0gaW4gYyg1LCAxMCwgMjAsIDUwLCAxMDAsIDI1MCkpIHsKICB1bnNlbGVjdF9udW0gPSB0b3RhbF9udW0gLSBudW0KICB1bnNlbGVjdF9jZWxscyA9IHNhbXBsZShyb3cubmFtZXMoZGZbZGYkY2VsbHR5cGU9PXRhcmdldF9jZWxsdHlwZSwgLCBkcm9wPUZdKSwgdW5zZWxlY3RfbnVtLCByZXBsYWNlID0gRikKICBkb3duc2FtcGxlX3JlZltbcGFzdGUwKG51bSwgJ2NlbGxzJyldXSA9IGRmWyFyb3cubmFtZXMoZGYpICVpbiUgdW5zZWxlY3RfY2VsbHMsICwgZHJvcD1GXQp9CmBgYAoKCkRvdWJsZSBjaGVjay4KCmBgYHtyfQpmb3IgKG9uZV9zZXR0aW5nIGluIG5hbWVzKGRvd25zYW1wbGVfcmVmKSkgewogIHByaW50KG9uZV9zZXR0aW5nKQogIHByaW50KHRhYmxlKGRvd25zYW1wbGVfcmVmW1tvbmVfc2V0dGluZ11dJGNlbGx0eXBlKSkKfQpgYGAKClNhdmUgcmVzdWx0LgoKYGBge3J9CmZvciAob25lX3NldHRpbmcgaW4gbmFtZXMoZG93bnNhbXBsZV9yZWYpKSB7CiAgZmlsZV9uYW1lID0gcGFzdGUwKCdzY1JOQV9jZWxsX2Fubm90YXRpb25fQXN0cm9fJywgb25lX3NldHRpbmcsICcuY3N2JykKICB3cml0ZS5jc3YoZG93bnNhbXBsZV9yZWZbW29uZV9zZXR0aW5nXV0sIGZpbGVfbmFtZSkKICBwcmludChzcHJpbnRmKCdzYXZlIGNlbGwgdHlwZSBhbm5vdGF0aW9uIHRvIGZpbGUgJXMnLCBmaWxlX25hbWUpKQp9CmBgYAoKCg==</div>
 
 
 </div>

@@ -38,7 +38,7 @@ We have also generated two additional simulation datasets with an increased numb
 - **3x Setting**: Approximately 3 to 36 cells per spot, with an average of 10.8 cells per spot.
 - **6x Setting**: Approximately 6 to 72 cells per spot, with an average of 21.6 cells per spot.
 
-To access the methods used for generating these datasets, please refer [generate_simulated_spatial_data.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/e9d87754ce22aa950aaab511d902525d685224e9/Simulation_seq_based/Generate_high_density_simulation_data/generate_simulated_spatial_data.nb.html) in folder [Generate_high_density_simulation_data](Generate_high_density_simulation_data).
+To access the methods used for generating these datasets, please refer [generate_simulated_spatial_data.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/d22e0c9b4574530a8ecbdf620638f2527ec20c5e/Simulation_seq_based/Generate_high_density_simulation_data/generate_simulated_spatial_data.nb.html) in folder [Generate_high_density_simulation_data](Generate_high_density_simulation_data).
 
 Notebooks of running SDePER and corresponding deconvoluted cell type proportions are available in folder [Run_SDePER_on_high_density_simulation_data](Run_SDePER_on_high_density_simulation_data).
 
