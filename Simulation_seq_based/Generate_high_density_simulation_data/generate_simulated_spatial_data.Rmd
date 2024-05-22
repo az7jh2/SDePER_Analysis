@@ -385,7 +385,7 @@ print(sprintf('save cell type annotation of %d scRNA-seq cells into file %s', nr
 
 # Exploration
 
-Histogram of sum of nUMIs per spot in different density settings.
+## Load 1x data
 
 Read original sequencing-based simulation data [`sim_seq_based_spatial_spot_nUMI.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation_seq_based/Generate_simulation_data/sim_seq_based_spatial_spot_nUMI.csv), i.e. **1x setting**.
 
@@ -395,6 +395,7 @@ ori_df = read.csv(file.path(home.dir, file_name), row.names = 1, check.names = F
 print(sprintf('read nUMI of %d spots and %d genes from file %s', nrow(ori_df), ncol(ori_df), file_name))
 ```
 
+## Histogram of sum of nUMIs per spot in different density settings
 
 Sum nUMIs of all genes in one spot and draw histogram.
 
@@ -421,4 +422,31 @@ ggplot(plot_df, aes(x = sum)) +
   facet_grid(rows = 'setting')
 ```
 
+
+## Histogram of #genes with nUMI>0 per spot in different density settings
+
+Count the number of genes with nUMI>0 in one spot and draw histogram.
+
+```{r}
+plot_df = data.frame(setting=character(), sum=integer(), stringsAsFactors = F)
+# 1x setting
+tmp_vec = Matrix::rowSums(ori_df>0)
+tmp_setting_vec = rep('1x', length(tmp_vec))
+plot_df = rbind(plot_df, data.frame(setting=tmp_setting_vec, sum=tmp_vec, stringsAsFactors = F))
+# 3x setting
+tmp_vec = Matrix::colSums(sim_res_3x$spatial_exp>0)
+tmp_setting_vec = rep('3x', length(tmp_vec))
+plot_df = rbind(plot_df, data.frame(setting=tmp_setting_vec, sum=tmp_vec, stringsAsFactors = F))
+# 6x setting
+tmp_vec = Matrix::colSums(sim_res_6x$spatial_exp>0)
+tmp_setting_vec = rep('6x', length(tmp_vec))
+plot_df = rbind(plot_df, data.frame(setting=tmp_setting_vec, sum=tmp_vec, stringsAsFactors = F))
+
+ggplot(plot_df, aes(x = sum)) +
+  geom_histogram() +
+  theme_bw() +
+  theme(strip.text.y = element_text(size = 12)) +
+  labs(x = '#genes with nUMI>0 in spot', y = 'Count') +
+  facet_grid(rows = 'setting')
+```
 
