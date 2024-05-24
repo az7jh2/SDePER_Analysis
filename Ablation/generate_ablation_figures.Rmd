@@ -38,6 +38,10 @@ method_color = c("SDePER"='#e6194b', "SpatialDWLS"='#3cb44b', "cell2location"='#
 
 This R Notebook generates figures in **Ablation Analysis** section in manuscript.
 
+We performed ablation test on 4 components: **pseudo-spots in training CVAE**, **sparsity penalty**, **spatial correlation constraint** and **platform effect removal**.
+
+We performed ablation test on 3 datasets: [**STARmap-based** simulated dataset](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/c60dcb036816bd61b5a8b3752d473a5b591b52b6/Simulation/Generate_simulation_data/generate_simulated_spatial_data.nb.html), [**sequencing-based** simulated dataset](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/03f921545a4e5d5a8fab813658eb2d9953f84cc7/Simulation_seq_based/Generate_simulation_data/generate_simulated_spatial_data.nb.html) and [**high density sequencing-based** simulated dataset](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/d22e0c9b4574530a8ecbdf620638f2527ec20c5e/Simulation_seq_based/Generate_high_density_simulation_data/generate_simulated_spatial_data.nb.html).
+
 1.  **Inputs**:
 
     * [`ablation_all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Ablation/ablation_all_results.rds): cell type deconvolution results of all ablation test on SDePER, as well as the ground truth in Ablation analysis.
@@ -194,16 +198,31 @@ for (dataset in names(all_res)) {
 ## Summary spot-wise performance into method-wise
 
 ```{r}
-perform_raw_df = data.frame(matrix(ncol=10, nrow=0))
-colnames(perform_raw_df) = c('Dataset', 'Scenario', 'Method', 'Reference', 'Spot', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
+perform_raw_df = data.frame(matrix(ncol=11, nrow=0))
+colnames(perform_raw_df) = c('Dataset', 'Density', 'Scenario', 'Method', 'Reference', 'Spot', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
 
 # calculate median performance across all spatial spots for all methods
-perform_median_df = data.frame(matrix(ncol=9, nrow=0))
-colnames(perform_median_df) = c('Dataset', 'Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')
+perform_median_df = data.frame(matrix(ncol=10, nrow=0))
+colnames(perform_median_df) = c('Dataset', 'Density', 'Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')
 
-for (dataset in names(all_res)) {
-  this_dataset = dataset
-  for (scenario in names(all_res[[dataset]])) {
+for (dataset in names(all_perform)) {
+  if (dataset == "Simulation") {
+    this_dataset = 'STARmap-based'
+    this_density = '1x'
+  } else if (dataset == "Simulation_seq_based") {
+    this_dataset = 'seq-based'
+    this_density = '1x'
+  } else if (dataset == "Simulation_seq_based_3x") {
+    this_dataset = 'seq-based'
+    this_density = '3x'
+  } else if (dataset == "Simulation_seq_based_6x") {
+    this_dataset = 'seq-based'
+    this_density = '6x'
+  } else {
+    stop('unknown dataset')
+  }
+  
+  for (scenario in names(all_perform[[dataset]])) {
     if (scenario == "S1_int_ref") {
       this_scenario = 'Scenario 1'
       this_ref = 'Internal'
@@ -213,21 +232,24 @@ for (dataset in names(all_res)) {
     } else if (scenario == 'S2_ext_ref') {
       this_scenario = 'Scenario 2'
       this_ref = 'External'
-    } else {
+    } else if (scenario == 'S3_ext_ref') {
       this_scenario = 'Scenario 3'
       this_ref = 'External'
+    } else {
+      stop('unknown scenario')
     }
       
     for (method_name in names(all_perform[[dataset]][[scenario]])) {
       tmp_df = all_perform[[dataset]][[scenario]][[method_name]]
       tmp_df['Dataset'] = this_dataset
+      tmp_df['Density'] = this_density
       tmp_df['Scenario'] = this_scenario
       tmp_df['Method'] = method_name
       tmp_df['Reference'] = this_ref
     
-      perform_raw_df = rbind(perform_raw_df, tmp_df[, c('Dataset', 'Scenario', 'Method', 'Reference', 'Spot', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')])
+      perform_raw_df = rbind(perform_raw_df, tmp_df[, c('Dataset', 'Density', 'Scenario', 'Method', 'Reference', 'Spot', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')])
     
-      perform_median_df[nrow(perform_median_df)+1, ] = c(this_dataset, this_scenario, method_name, this_ref,
+      perform_median_df[nrow(perform_median_df)+1, ] = c(this_dataset, this_density, this_scenario, method_name, this_ref,
                                                        round(median(tmp_df$RMSE), 3),
                                                        round(median(tmp_df$JSD), 3),
                                                        round(median(tmp_df$Pearson), 3),
@@ -248,7 +270,7 @@ perform_raw_df = perform_raw_df %>%
 perform_median_df = perform_median_df %>%
   filter(Method %in% c("SDePER", "NO_PlatEffRmv", "NO_pseudo_spots", "NO_LASSO", "NO_Laplacian"))
 
-perform_median_df[, c('Dataset', 'Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')]
+perform_median_df[, c('Dataset', 'Density', 'Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')]
 ```
 
 
@@ -264,7 +286,7 @@ if (save_file) {
 }
 
 plot_df = perform_raw_df %>%
-  filter(Dataset == 'Simulation' & Scenario=='Scenario 1')
+  filter(Dataset == 'STARmap-based' & Scenario=='Scenario 1')
 
 g_list = list()
 
@@ -309,29 +331,31 @@ ggplot(plot_df, aes(x=Method, y=FNR, fill=Method)) +
 
 ## Figure. Boxplot of performance of all methods in Ablation test on Simulated Data Scenario 1
 
-```{r, fig.width=6, fig.height=6}
+```{r, fig.width=12, fig.height=6}
 if (save_file) {
   file_name = file.path(home.dir, 'Fig_ablation_simulation_seq_based_S1_performance.pdf')
-  cairo_pdf(file_name, height=6, width=6, onefile=T)
+  cairo_pdf(file_name, height=6, width=12, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
 
 plot_df = perform_raw_df %>%
-  filter(Dataset == 'Simulation_seq_based' & Scenario=='Scenario 1')
+  filter(Dataset == 'seq-based' & Scenario=='Scenario 1')
 
 g_list = list()
 
 for (perform_ind in c('RMSE', 'Pearson', 'JSD', 'FDR')) {
-  g_list[[perform_ind]] = ggplot(plot_df, aes(x=Method, y=.data[[perform_ind]], fill=Method)) +
+  g_list[[perform_ind]] = ggplot(plot_df, aes(x=Density, y=.data[[perform_ind]], fill=Method)) +
                             geom_boxplot(position=position_dodge(), outlier.shape=NA) +
                             scale_fill_manual(values=method_color, labels=c('SDePER'='SDePER (baseline)','GLRM'='GLRM (NO CVAE)', 'NO_PlatEffRmv'='NO PlatEffRmv', 'NO_pseudo_spots'='NO pseudo spots', 'NO_LASSO'='NO LASSO', 'NO_Laplacian'='NO Laplacian', 'NO_LASSO_Laplacian'='NO LASSO Laplacian', 'NO_CVAE_LASSO_Laplacian'='NO CVAE LASSO Laplacian', 'NO_PlatEffRmv_LASSO_Laplacian'='NO PlatEffRmv LASSO Laplacian')) +
                             theme_classic() +
-                            theme(strip.text = element_text(size=10),
-                                  axis.text = element_text(color="black"),
+                            theme(strip.text = element_text(size=14),
+                                  axis.text = element_text(color="black", size=12),
                                   axis.ticks.x = element_blank(),
-                                  axis.text.x = element_blank(),
+                                  axis.text.x = element_text(color="black", size=12),
                                   axis.title.x = element_blank(),
-                                  legend.title = element_blank()) +
+                                  axis.title.y = element_text(size=13),
+                                  legend.title = element_blank(),
+                                  legend.text = element_text(size=12)) +
                             facet_grid(~Reference)
                             
 }
@@ -343,15 +367,15 @@ ggpubr::ggarrange(plotlist=g_list, ncol=2, nrow=2, common.legend=TRUE, legend="r
 
 ## Addtional boxplot for FNR
 
-```{r, fig.width=4, fig.height=3}
-ggplot(plot_df, aes(x=Method, y=FNR, fill=Method)) +
+```{r, fig.width=6, fig.height=3}
+ggplot(plot_df, aes(x=Density, y=FNR, fill=Method)) +
   geom_boxplot(position=position_dodge(), outlier.shape=NA) +
   scale_fill_manual(values=method_color, labels=c('SDePER'='SDePER (baseline)','GLRM'='GLRM (NO CVAE)', 'NO_PlatEffRmv'='NO PlatEffRmv', 'NO_pseudo_spots'='NO pseudo spots', 'NO_LASSO'='NO LASSO', 'NO_Laplacian'='NO Laplacian', 'NO_LASSO_Laplacian'='NO LASSO Laplacian', 'NO_CVAE_LASSO_Laplacian'='NO CVAE LASSO Laplacian', 'NO_PlatEffRmv_LASSO_Laplacian'='NO PlatEffRmv LASSO Laplacian')) +
   theme_classic() +
   theme(strip.text = element_text(size=10),
         axis.text = element_text(color="black"),
         axis.ticks.x = element_blank(),
-        axis.text.x = element_blank(),
+        axis.text.x = element_text(),
         axis.title.x = element_blank(),
         legend.title = element_blank()) +
         facet_grid(~Reference)
