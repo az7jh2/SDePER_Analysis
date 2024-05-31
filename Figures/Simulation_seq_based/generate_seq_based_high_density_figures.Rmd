@@ -64,7 +64,7 @@ print(sprintf('Package %s version: %s', 'philentropy', packageVersion('philentro
 
 # Read relevant files
 
-## Read estimated cell type proportions in ablation test
+Read estimated cell type proportions.
 
 ```{r}
 file_name = file.path(home.dir, 'simulation_seq_based_high_density_all_results.rds')
@@ -75,13 +75,11 @@ print(sprintf('load data from %s', file_name))
 Check the order of spots and cell types are consistent before performance evaluation.
 
 ```{r}
-for (dataset in names(all_res)) {
-  for (scenario in names(all_res[[dataset]])) {
-    if (scenario != 'Truth') {
-      for (method_name in names(all_res[[dataset]][[scenario]])) {
-        stopifnot(all(row.names(all_res[[dataset]][[scenario]][[method_name]]) == row.names(all_res[[dataset]][['Truth']])))
-        stopifnot(all(colnames(all_res[[dataset]][[scenario]][[method_name]]) == colnames(all_res[[dataset]][['Truth']])))
-      }
+for (scenario in names(all_res)) {
+  if (scenario != 'Truth') {
+    for (method_name in names(all_res[[scenario]])) {
+      stopifnot(all(row.names(all_res[[scenario]][[method_name]]) == row.names(all_res[['Truth']])))
+      stopifnot(all(colnames(all_res[[scenario]][[method_name]]) == colnames(all_res[['Truth']])))
     }
   }
 }
@@ -97,9 +95,9 @@ for (scenario in names(all_res)) {
       for (i in 1:nrow(tmp_df)) {
         for (j in 1:ncol(tmp_df)) {
           if (tmp_df[i, j] < 0) {
-            print(sprintf('%s - %s: %s result: row %d (%s) column %d (%s) has negative value %g', dataset, scenario, method_name, i, row.names(tmp_df)[i], j, colnames(tmp_df)[j], tmp_df[i, j]))
+            print(sprintf('%s: %s result: row %d (%s) column %d (%s) has negative value %g', scenario, method_name, i, row.names(tmp_df)[i], j, colnames(tmp_df)[j], tmp_df[i, j]))
             # replace them with 0
-            all_res[[dataset]][[scenario]][[method_name]][i, j] = 0
+            all_res[[scenario]][[method_name]][i, j] = 0
           }
         }
       }

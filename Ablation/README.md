@@ -6,7 +6,9 @@ We conducted ablation tests on SDePER to evaluate the impact of various componen
 - Fitting the graph Laplacian regularized model **without the spatial correlation constraint**, essentially removing Laplacian regularization (by setting the command option `--lambda_g` to 0).
 - Conducting cell type deconvolution while **disregarding platform effect**, meaning that neither CVAE nor an additive gene-wise platform effect term is utilized.
 
-Ablation Test results are shown in [generate_ablation_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/89bce640aaee74b15f744061cb944aa0debb1139/Ablation/generate_ablation_figures.nb.html).
+We performed ablation test on 3 datasets: [**STARmap-based** simulated dataset](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/c60dcb036816bd61b5a8b3752d473a5b591b52b6/Simulation/Generate_simulation_data/generate_simulated_spatial_data.nb.html), [**sequencing-based** simulated dataset](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/03f921545a4e5d5a8fab813658eb2d9953f84cc7/Simulation_seq_based/Generate_simulation_data/generate_simulated_spatial_data.nb.html) and [**high density sequencing-based** simulated dataset](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/d22e0c9b4574530a8ecbdf620638f2527ec20c5e/Simulation_seq_based/Generate_high_density_simulation_data/generate_simulated_spatial_data.nb.html).
+
+Ablation Test results are shown in [generate_ablation_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/67e1550a737a43f1842aeeb349a9cea77b7d5861/Ablation/generate_ablation_figures.nb.html).
 
 NOTE: In each ablation test run, we will **conduct a 5-fold cross-validation to determine the optimal values for the Adaptive LASSO regularization and Laplacian regularization hyperparameters anew**. This approach is necessitated by the potential shift in the optimal parameter values resulting from the modification of a single component in the ablation test. Our objective is to guarantee that the ablation test accurately represents the impact of the modification on performance, under the most favorable conditions.
 
