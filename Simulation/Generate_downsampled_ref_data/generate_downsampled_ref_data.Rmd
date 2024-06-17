@@ -37,7 +37,7 @@ my.distinct.colors40 = c("#00ff00","#ff4500","#00ced1","#556b2f","#a0522d","#8b0
 
 # Summary
 
-We generated internal and external scRNA-seq reference data by downsampling the number of cells of cell type **Astro**. We randomly downsampled the number of cells to 5, 10, 20, 50, 100 and 250.
+We generated internal and external scRNA-seq reference data by downsampling the number of cells of cell type **Astro** and **Oligo**. We randomly downsampled the number of cells to 5, 10, 20, 50, 100 and 250.
 
 A smaller number of cells per cell type hinders the generation of a robust cell type-specific gene expression profile, and also affects the selection of cell type marker genes in differential analysis.
 
@@ -50,43 +50,61 @@ version[['version.string']]
 ```
 
 
+# Read cell type annotation
 
-# Internal reference
+## Internal reference -- STARmap cells
 
-## Load all STARmap cells
-
-We read cell type annotation of all 2,002 STARmap cells (available at [STARmap_cell_celltype.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/STARmap_cell_celltype.csv)), and randomly downsampled the number of Astro cells.
-
-The downsampled cell type annotation files are available in [this folder](https://github.com/az7jh2/SDePER_Analysis/tree/main/Simulation/Run_SDePER_on_simulation_data_with_downsampled_ref/Scenario_1/ref_spatial).
+We read cell type annotation of all 2,002 STARmap cells (available at [STARmap_cell_celltype.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/STARmap_cell_celltype.csv)), and randomly downsampled the number of Astro and Oligo cells.
 
 
 ```{r}
 file_name = file.path(home.dir, 'STARmap_cell_celltype.csv')
-df = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+int_df = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
 print(sprintf('load data from %s', file_name))
-print(sprintf('total %d cells', nrow(df)))
+print(sprintf('total %d cells', nrow(int_df)))
 ```
 
 Number of cells of each cell type is shown as below.
 
 ```{r}
-table(df$celltype)
+table(int_df$celltype)
 ```
 
 
-## Downsampling
+## External reference -- [GSE115746](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE115746) scRNA-seq cells
+
+We read cell type annotation of all 11,835 scRNA-seq cells (available at [ref_scRNA_cell_celltype.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/ref_scRNA_cell_celltype.csv)), and randomly downsampled the number of Astro and Oligo cells.
+
+```{r}
+file_name = file.path(home.dir, 'ref_scRNA_cell_celltype.csv')
+ext_df = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+print(sprintf('load data from %s', file_name))
+print(sprintf('total %d cells', nrow(ext_df)))
+```
+
+Number of cells of each cell type is shown as below.
+
+```{r}
+table(ext_df$celltype)
+```
+
+
+
+# Downsampling Astro cells
+
+## Internal reference
 
 Randomly selected a specific number of cells to ensure there are 5, 10, 20, 50, 100 and 250 cells for Astro, respectively.
 
 ```{r}
 target_celltype = 'Astro'
 downsample_ref = list()
-total_num = sum(df$celltype == target_celltype)
+total_num = sum(int_df$celltype == target_celltype)
 
 for (num in c(5, 10, 20, 50, 100, 250)) {
   unselect_num = total_num - num
-  unselect_cells = sample(row.names(df[df$celltype==target_celltype, , drop=F]), unselect_num, replace = F)
-  downsample_ref[[paste0(num, 'cells')]] = df[!row.names(df) %in% unselect_cells, , drop=F]
+  unselect_cells = sample(row.names(int_df[int_df$celltype==target_celltype, , drop=F]), unselect_num, replace = F)
+  downsample_ref[[paste0(num, 'cells')]] = int_df[!row.names(int_df) %in% unselect_cells, , drop=F]
 }
 ```
 
@@ -100,11 +118,50 @@ for (one_setting in names(downsample_ref)) {
 }
 ```
 
-Save result.
+
+Save result. The downsampled cell type annotation files are available in [this folder](https://github.com/az7jh2/SDePER_Analysis/tree/main/Simulation/Run_SDePER_on_simulation_data_with_downsampled_ref/Astro/Scenario_1/ref_spatial).
 
 ```{r}
 for (one_setting in names(downsample_ref)) {
-  file_name = paste0('STARmap_cell_annotation_Astro_', one_setting, '.csv')
+  file_name = paste0('STARmap_cell_annotation_', target_celltype, '_', one_setting, '.csv')
+  write.csv(downsample_ref[[one_setting]], file_name)
+  print(sprintf('save cell type annotation to file %s', file_name))
+}
+```
+
+
+## External reference
+
+Randomly selected a specific number of cells to ensure there are 5, 10, 20, 50, 100 and 250 cells for Astro, respectively.
+
+```{r}
+target_celltype = 'Astro'
+downsample_ref = list()
+total_num = sum(ext_df$celltype == target_celltype)
+
+for (num in c(5, 10, 20, 50, 100, 250)) {
+  unselect_num = total_num - num
+  unselect_cells = sample(row.names(ext_df[ext_df$celltype==target_celltype, , drop=F]), unselect_num, replace = F)
+  downsample_ref[[paste0(num, 'cells')]] = ext_df[!row.names(ext_df) %in% unselect_cells, , drop=F]
+}
+```
+
+
+Double check.
+
+```{r}
+for (one_setting in names(downsample_ref)) {
+  print(one_setting)
+  print(table(downsample_ref[[one_setting]]$celltype))
+}
+```
+
+
+Save result. The downsampled cell type annotation files are available in [this folder](https://github.com/az7jh2/SDePER_Analysis/tree/main/Simulation/Run_SDePER_on_simulation_data_with_downsampled_ref/Astro/Scenario_1/ref_scRNA_seq).
+
+```{r}
+for (one_setting in names(downsample_ref)) {
+  file_name = paste0('scRNA_cell_annotation_', target_celltype, '_', one_setting, '.csv')
   write.csv(downsample_ref[[one_setting]], file_name)
   print(sprintf('save cell type annotation to file %s', file_name))
 }
@@ -112,42 +169,21 @@ for (one_setting in names(downsample_ref)) {
 
 
 
-# External reference
+# Downsampling Oligo cells
 
-## Load all  [GSE115746](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE115746) scRNA-seq cells
+## Internal reference
 
-We read cell type annotation of all 11,835 scRNA-seq cells (available at [ref_scRNA_cell_celltype.csv](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/ref_scRNA_cell_celltype.csv)), and randomly downsampled the number of Astro cells.
-
-The downsampled cell type annotation files are available in [this folder](https://github.com/az7jh2/SDePER_Analysis/tree/main/Simulation/Run_SDePER_on_simulation_data_with_downsampled_ref/Scenario_1/ref_scRNA_seq).
-
+Randomly selected a specific number of cells to ensure there are 5, 10, 20 and 50 cells for Oligo, respectively.
 
 ```{r}
-file_name = file.path(home.dir, 'ref_scRNA_cell_celltype.csv')
-df = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
-print(sprintf('load data from %s', file_name))
-print(sprintf('total %d cells', nrow(df)))
-```
-
-Number of cells of each cell type is shown as below.
-
-```{r}
-table(df$celltype)
-```
-
-
-## Downsampling
-
-Randomly selected a specific number of cells to ensure there are 5, 10, 20, 50, 100 and 250 cells for Astro, respectively.
-
-```{r}
-target_celltype = 'Astro'
+target_celltype = 'Oligo'
 downsample_ref = list()
-total_num = sum(df$celltype == target_celltype)
+total_num = sum(int_df$celltype == target_celltype)
 
-for (num in c(5, 10, 20, 50, 100, 250)) {
+for (num in c(5, 10, 20, 50)) {
   unselect_num = total_num - num
-  unselect_cells = sample(row.names(df[df$celltype==target_celltype, , drop=F]), unselect_num, replace = F)
-  downsample_ref[[paste0(num, 'cells')]] = df[!row.names(df) %in% unselect_cells, , drop=F]
+  unselect_cells = sample(row.names(int_df[int_df$celltype==target_celltype, , drop=F]), unselect_num, replace = F)
+  downsample_ref[[paste0(num, 'cells')]] = int_df[!row.names(int_df) %in% unselect_cells, , drop=F]
 }
 ```
 
@@ -161,11 +197,50 @@ for (one_setting in names(downsample_ref)) {
 }
 ```
 
-Save result.
+
+Save result. The downsampled cell type annotation files are available in [this folder](https://github.com/az7jh2/SDePER_Analysis/tree/main/Simulation/Run_SDePER_on_simulation_data_with_downsampled_ref/Oligo/Scenario_1/ref_spatial).
 
 ```{r}
 for (one_setting in names(downsample_ref)) {
-  file_name = paste0('scRNA_cell_annotation_Astro_', one_setting, '.csv')
+  file_name = paste0('STARmap_cell_annotation_', target_celltype, '_', one_setting, '.csv')
+  write.csv(downsample_ref[[one_setting]], file_name)
+  print(sprintf('save cell type annotation to file %s', file_name))
+}
+```
+
+
+## External reference
+
+Randomly selected a specific number of cells to ensure there are 5, 10, 20 and 50 cells for Oligo, respectively.
+
+```{r}
+target_celltype = 'Oligo'
+downsample_ref = list()
+total_num = sum(ext_df$celltype == target_celltype)
+
+for (num in c(5, 10, 20, 50)) {
+  unselect_num = total_num - num
+  unselect_cells = sample(row.names(ext_df[ext_df$celltype==target_celltype, , drop=F]), unselect_num, replace = F)
+  downsample_ref[[paste0(num, 'cells')]] = ext_df[!row.names(ext_df) %in% unselect_cells, , drop=F]
+}
+```
+
+
+Double check.
+
+```{r}
+for (one_setting in names(downsample_ref)) {
+  print(one_setting)
+  print(table(downsample_ref[[one_setting]]$celltype))
+}
+```
+
+
+Save result. The downsampled cell type annotation files are available in [this folder](https://github.com/az7jh2/SDePER_Analysis/tree/main/Simulation/Run_SDePER_on_simulation_data_with_downsampled_ref/Oligo/Scenario_1/ref_scRNA_seq).
+
+```{r}
+for (one_setting in names(downsample_ref)) {
+  file_name = paste0('scRNA_cell_annotation_', target_celltype, '_', one_setting, '.csv')
   write.csv(downsample_ref[[one_setting]], file_name)
   print(sprintf('save cell type annotation to file %s', file_name))
 }

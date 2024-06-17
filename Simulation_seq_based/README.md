@@ -42,4 +42,4 @@ To access the methods used for generating these datasets, please refer [generate
 
 Notebooks of running SDePER and corresponding deconvoluted cell type proportions are available in folder [Run_SDePER_on_high_density_simulation_data](Run_SDePER_on_high_density_simulation_data).
 
-Results are shown in [generate_seq_based_high_density_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/b5d860af8d1d529247028e906ece719285c71813/Figures/Simulation_seq_based/generate_seq_based_high_density_figures.nb.html).
+Results are shown in [generate_seq_based_high_density_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/5e3b7e0973437802eb3f709468def4cab6f1c653/Figures/Simulation_seq_based/generate_seq_based_high_density_figures.nb.html).
