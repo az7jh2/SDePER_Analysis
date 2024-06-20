@@ -1,0 +1,418 @@
+---
+title: "Generate figures in *Sequencing-based* Simulation Analysis"
+author: "Ningshan Li & Yunqing Liu"
+date: "2024/05/09"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+# use ggpubr package (http://www.sthda.com/english/articles/24-ggpubr-publication-ready-plots/81-ggplot2-easy-way-to-mix-multiple-graphs-on-the-same-page/)
+library(dplyr)
+library(ggplot2)
+library(scatterpie)
+
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/Spatial/Figures/Simulation_seq_based'
+save_file = FALSE
+
+my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
+method_color = c("SDePER"='#E6194B', "GLRM"='#F032E6', "RCTD"='#46F0F0', "SpatialDWLS"='#3CB44B', "cell2location"='#FFE119',"SONAR"='#9A6324', "SPOTlight"='#4363D8', "CARD"='#F58231', "DestVI"='#911EB4')
+```
+
+
+# Summary
+
+This R Notebook generates figures in **Sequencing-based Simulation Analysis** section in manuscript.
+
+1. **Inputs**:
+
+    * [`simulation_seq_based_all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Figures/Simulation_seq_based/simulation_seq_based_all_results.rds): cell type deconvolution results of all methods, as well as the ground truth in sequencing-based simulation analysis.
+    * [`sim_spatial_spot_loc.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data/sim_spatial_spot_loc.csv): physical locations of spatial spots.
+
+2. **Outputs**:
+
+    * Table. Median RMSE, JSD, correlation and FDR of all methods in Scenario 1
+    * Figure. Boxplot of performance of all methods in Scenario 1
+    * Figure. Pie chart of cell type proportions of all methods in Scenario 1
+
+
+# Version
+
+```{r}
+version[['version.string']]
+print(sprintf('Package %s version: %s', 'ggplot2', packageVersion('ggplot2')))
+print(sprintf('Package %s version: %s', 'ggpubr', packageVersion('ggpubr')))
+print(sprintf('Package %s version: %s', 'philentropy', packageVersion('philentropy'))) # JSD function
+```
+
+# Read locations of spatial spots
+
+```{r}
+file_name = file.path(home.dir, 'sim_spatial_spot_loc.csv')
+loc_df = read.csv(file_name, row.names = 1, check.names = F)
+print(sprintf('load data from %s', file_name))
+```
+
+
+# Read estimated cell type proportions by all methods
+
+```{r}
+file_name = file.path(home.dir, 'simulation_seq_based_all_results.rds')
+all_res = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+```
+
+
+# Quality control
+
+## Variable order
+
+Check the order of spots and cell types are consistent before performance evaluation.
+
+```{r}
+for (scenario in names(all_res)) {
+  if (scenario != 'Truth') {
+    for (method_name in names(all_res[[scenario]])) {
+      stopifnot(all(row.names(all_res[[scenario]][[method_name]]) == row.names(all_res$Truth)))
+      stopifnot(all(colnames(all_res[[scenario]][[method_name]]) == colnames(all_res$Truth)))
+    }
+  }
+}
+```
+
+
+## Negative proportions
+
+Check whether negative values of estimated cell type proportions exist, as negative values may cause error in JSD calculation and got `NaN`. Replace them as 0.
+
+```{r}
+for (scenario in names(all_res)) {
+  if (scenario != 'Truth') {
+    for (method_name in names(all_res[[scenario]])) {
+      tmp_df = all_res[[scenario]][[method_name]]
+      for (i in 1:nrow(tmp_df)) {
+        for (j in 1:ncol(tmp_df)) {
+          if (tmp_df[i, j] < 0) {
+            print(sprintf('%s: %s result: row %d (%s) column %d (%s) has negative value %g', scenario, method_name, i, row.names(tmp_df)[i], j, colnames(tmp_df)[j], tmp_df[i, j]))
+            # replace them with 0
+            all_res[[scenario]][[method_name]][i, j] = 0
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## ALL 0s
+
+Check whether estimated cell type proportions of spot are ALL 0s.
+
+```{r}
+for (scenario in names(all_res)) {
+  if (scenario != 'Truth') {
+    for (method_name in names(all_res[[scenario]])) {
+      tmp_df = all_res[[scenario]][[method_name]]
+      for (i in 1:nrow(tmp_df)) {
+        if (sum(tmp_df[i, ]) == 0) {
+          print(sprintf('%s: %s result: row %d (%s) has ALL 0s', scenario, method_name, i, row.names(tmp_df)[i]))
+        }
+      }
+    }
+  }
+}
+```
+
+## Hard-thresholding (NOT applied)
+
+For the methods without cell type selection procedure, including **cell2location**, **DestVI**, **CARD** and **SONAR**, we put a hard-thresholding with cutoff **0.1** on the estimated cell type compositions to force the extremely small proportions to be zeros.
+
+**UPDATE**: hard-thresholding were NOT applied, original estimated cell type proportions were used for performance evaluation.
+
+
+
+# Evaluate performance of cell type deconvolution methods
+
+## Calculate spot-wise performance of all methods
+
+4 performance measurements:
+
+* root mean square error (**RMSE**): quantifies the overall estimation accuracy
+* Jensen-Shannon Divergence (**JSD**): assesses similarity between the estimated cell type distribution and ground-truth per spot
+* **Pearson’s correlation coefficient**: measures the similarity of estimation to ground-truth
+* false discovery rate (**FDR**): measures how many cell types were falsely predicted to be present
+
+NOTE:
+
+* in **SpatialDWLS** result, rows with ALL 0s may cause performance values to be `NA` or `NaN`.
+
+```{r}
+binaryPredEvaluation = function(truth, pred) {
+  # Given an array of truth and predictions (either 0 or 1), calculate confusion matrix
+  # convert to factors to ensure get a full 2*2 confusion matrix
+  truth_factor = factor(truth, levels = c(0, 1))
+  pred_factor = factor(pred, levels = c(0, 1))
+  # Generate confusion matrix
+  conf_matrix = table(Actual = truth_factor, Predicted = pred_factor)
+  # Extract elements of the confusion matrix
+  TP = conf_matrix[2, 2]
+  FP = conf_matrix[1, 2]
+  FN = conf_matrix[2, 1]
+  TN = conf_matrix[1, 1]
+  # Calculate FDR (False Discovery Rate)
+  FDR = FP / (TP + FP)
+  # Calculate FNR (False Negative Rate)
+  FNR = FN / (TP + FN)
+  return(c(FDR, FNR))
+}
+
+calcPerformance = function(truth, pred) {
+  # calculate RMSE, JSD, correlation and FDR for each row
+  # inputs are matrix with rows as spots and columns as cell types, order has been checked to be consistent
+  stopifnot(all(row.names(truth) == row.names(pred)))
+  stopifnot(all(colnames(truth) == colnames(pred)))
+  
+  # binary cell type proportions (0:absent; 1:present)
+  truth_binary = truth != 0
+  pred_binary = pred != 0
+  # in-place conversion from bool to 0/1 while keeping dimensions, row names and column names, as `as.numeric()` will "flattern" the original matrix
+  truth_binary[] = as.numeric(truth_binary)
+  pred_binary[] = as.numeric(pred_binary)
+  
+  perform_df = data.frame(RMSE=numeric(), JSD=numeric(), Pearson=numeric(), FDR=numeric(), FNR=numeric(), stringsAsFactors = F)
+  
+  for (i in 1:nrow(truth)) {
+    RMSE = sqrt(mean((truth[i,] - pred[i,]) ^ 2))
+    if (sum(pred[i,])>0 & sum(truth[i,])>0) {
+      JSD = philentropy::JSD(rbind(truth[i,], pred[i,]), unit = 'log2', est.prob = 'empirical')
+    } else {
+      JSD = 1
+    }
+    Pearson = cor.test(truth[i,], pred[i,])$estimate
+    tmp = binaryPredEvaluation(truth_binary[i,], pred_binary[i,])
+    FDR = tmp[1]
+    FNR = tmp[2]
+    
+    perform_df[nrow(perform_df)+1, ] = c(RMSE, JSD, Pearson, FDR, FNR)
+  }
+  
+  # also record spot names
+  stopifnot(nrow(perform_df) == nrow(truth))
+  perform_df['Spot'] = row.names(truth)
+  
+  return(perform_df)
+}
+
+
+all_perform = list()
+
+for (scenario in names(all_res)) {
+  if (scenario != 'Truth') {
+    all_perform[[scenario]] = list()
+    for (method_name in names(all_res[[scenario]])) {
+      all_perform[[scenario]][[method_name]] = calcPerformance(as.matrix(all_res[['Truth']]), as.matrix(all_res[[scenario]][[method_name]]))
+    }
+  }   
+}
+```
+
+
+For rows with ALL 0s in **SpatialDWLS** performance, replace `NA` Pearson’s correlation coefficient as 0, `NaN` FDR as 0.
+
+```{r}
+for (scenario in names(all_perform)) {
+  tmp_df = all_perform[[scenario]][['SpatialDWLS']]
+  tmp_df[is.na(tmp_df)] = 0
+  all_perform[[scenario]][['SpatialDWLS']] = tmp_df
+}
+```
+
+
+
+## Summary spot-wise performance into method-wise
+
+Including Table. Median RMSE, JSD, correlation, FDR and FNR of all methods in Scenario 1.
+
+```{r}
+perform_raw_df = data.frame(Scenario=character(), Method=character(), Reference=character(), Spot=character(),
+                            RMSE=numeric(), JSD=numeric(), Pearson=numeric(), FDR=numeric(), FNR=numeric(),
+                            stringsAsFactors = F)
+
+# calculate median performance across all spatial spots for all methods
+perform_median_df = data.frame(Scenario=character(), Method=character(), Reference=character(),
+                               median_RMSE=numeric(), median_JSD=numeric(), median_Pearson=numeric(), median_FDR=numeric(), median_FNR=numeric(),
+                               stringsAsFactors = F)
+
+for (scenario in names(all_perform)) {
+  if (scenario == "S1_int_ref") {
+    this_scenario = 'Scenario 1'
+    this_ref = 'Internal'
+  } else if (scenario == "S1_ext_ref") {
+    this_scenario = 'Scenario 1'
+    this_ref = 'External'
+  } else if (scenario == 'S2_ext_ref') {
+    this_scenario = 'Scenario 2'
+    this_ref = 'External'
+  } else {
+    this_scenario = 'Scenario 3'
+    this_ref = 'External'
+  }
+  
+  for (method_name in names(all_perform[[scenario]])) {
+    tmp_df = all_perform[[scenario]][[method_name]]
+    tmp_df['Scenario'] = this_scenario
+    tmp_df['Method'] = method_name
+    tmp_df['Reference'] = this_ref
+    
+    perform_raw_df = rbind(perform_raw_df, tmp_df[, c('Scenario', 'Method', 'Reference', 'Spot', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')])
+    
+    # use list() instead of c() to keep data type, otherwise c() will coerce all elements to a common type like string
+    perform_median_df[nrow(perform_median_df)+1, ] = list(this_scenario, method_name, this_ref,
+                                                          round(median(tmp_df$RMSE), 3),
+                                                          round(median(tmp_df$JSD), 3),
+                                                          round(median(tmp_df$Pearson), 3),
+                                                          round(median(tmp_df$FDR), 3),
+                                                          round(median(tmp_df$FNR), 3))
+  }
+}
+
+# set method column as factors
+perform_raw_df['Method'] = factor(perform_raw_df$Method, levels = names(method_color))
+
+perform_median_df[, c('Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')]
+```
+
+
+
+# Draw figures
+
+## Figure. Boxplot of performance of all methods in Scenario 1
+
+```{r, fig.width=6.5, fig.height=6}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig_sequencing_based_performance.pdf')
+  cairo_pdf(file_name, height=6, width=6.5, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+plot_df = perform_raw_df %>%
+  filter(Scenario=='Scenario 1')
+
+g_list = list()
+
+for (perform_ind in c('RMSE', 'Pearson', 'JSD', 'FDR')) {
+  g_list[[perform_ind]] = ggplot(plot_df, aes(x=Method, y=.data[[perform_ind]], fill=Method)) +
+                            geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+                            scale_fill_manual(values=method_color) +
+                            theme_classic() +
+                            theme(strip.text = element_text(size=10),
+                                  axis.text = element_text(color="black"),
+                                  axis.ticks.x = element_blank(),
+                                  axis.text.x = element_blank(),
+                                  axis.title.x = element_blank(),
+                                  legend.title = element_blank()) +
+                            facet_grid(~Reference)
+}
+
+g_list[['Pearson']] = g_list[['Pearson']] + geom_hline(yintercept=0, color="red", linetype="dashed")
+
+ggpubr::ggarrange(plotlist=g_list, ncol=2, nrow=2, common.legend=TRUE, legend="right")
+```
+
+
+## Addtional boxplot for FNR
+
+```{r, fig.width=4, fig.height=3}
+ggplot(plot_df, aes(x=Method, y=FNR, fill=Method)) +
+  geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+  scale_fill_manual(values=method_color) +
+  theme_classic() +
+  theme(strip.text = element_text(size=10),
+        axis.text = element_text(color="black"),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        legend.title = element_blank()) +
+  facet_grid(~Reference)
+```
+
+
+## Figure. Pie chart of all methods in Scenario 1
+
+### Internal reference
+
+```{r, fig.width=19.5, fig.height=21}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig_sequencing_based_piechart_internal_ref.pdf')
+  cairo_pdf(file_name, height=21, width=19.5, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+g_list = list()
+
+
+all_methods = names(method_color)
+all_cts = colnames(all_res$Truth)
+
+for (one_method in all_methods) {
+  plot_df = merge(all_res$S1_int_ref[[one_method]], loc_df[, c('x', 'y')], by='row.names')
+  g_list[[length(g_list)+1]] = ggplot() +
+    geom_scatterpie(aes(x=x, y=y), data=plot_df, cols=all_cts) +
+    scale_fill_manual(values=my_color) +
+    theme_classic() +
+    ggtitle(one_method) +
+    theme(axis.title=element_blank(), axis.text=element_blank(), axis.ticks=element_blank(), axis.line=element_blank(),
+      legend.title=element_blank(), legend.text=element_text(size=15),
+      plot.title=element_text(size=17, face='bold', hjust=0.1))
+}
+
+ggpubr::ggarrange(plotlist = g_list, ncol = 3, nrow = 3, align = 'hv', common.legend = T, legend = 'right', font.label = list(size=17))
+```
+
+
+### External reference
+
+```{r, fig.width=19.5, fig.height=21}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig_sequencing_based_piechart_external_ref.pdf')
+  cairo_pdf(file_name, height=21, width=19.5, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+g_list = list()
+
+
+all_methods = names(method_color)
+all_cts = colnames(all_res$Truth)
+
+for (one_method in all_methods) {
+  plot_df = merge(all_res$S1_ext_ref[[one_method]], loc_df[, c('x', 'y')], by='row.names')
+  g_list[[length(g_list)+1]] = ggplot() +
+    geom_scatterpie(aes(x=x, y=y), data=plot_df, cols=all_cts) +
+    scale_fill_manual(values=my_color) +
+    theme_classic() +
+    ggtitle(one_method) +
+    theme(axis.title=element_blank(), axis.text=element_blank(), axis.ticks=element_blank(), axis.line=element_blank(),
+      legend.title=element_blank(), legend.text=element_text(size=15),
+      plot.title=element_text(size=17, face='bold', hjust=0.1))
+}
+
+ggpubr::ggarrange(plotlist = g_list, ncol = 3, nrow = 3, align = 'hv', common.legend = T, legend = 'right', font.label = list(size=17))
+```
+
+
