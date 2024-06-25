@@ -1,0 +1,1009 @@
+---
+title: "Generate figures of *Oligo* performance in Simulation Analysis"
+author: "Ningshan Li"
+date: "2024/05/30"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+# use ggpubr package (http://www.sthda.com/english/articles/24-ggpubr-publication-ready-plots/81-ggplot2-easy-way-to-mix-multiple-graphs-on-the-same-page/)
+library(dplyr)
+library(ggplot2)
+
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/Spatial/Figures/Simulation'
+save_file = FALSE
+
+my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
+method_color = c("SDePER"='#E6194B', "GLRM"='#F032E6', "RCTD"='#46F0F0', "SpatialDWLS"='#3CB44B', "cell2location"='#FFE119',"SONAR"='#9A6324', "SPOTlight"='#4363D8', "CARD"='#F58231', "DestVI"='#911EB4')
+```
+
+
+# Summary
+
+We selected **Oligo** from 12 cell types for evaluating the performance in identifying "rare cell types" in cell type deconvolution. Our analysis is divided into two parts:
+
+1. **Identifying "rare cell types" from spatial spot data**:
+
+    We analyzed the [STARmap-based simulation](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/c60dcb036816bd61b5a8b3752d473a5b591b52b6/Simulation/Generate_simulation_data/generate_simulated_spatial_data.nb.html) results and [high density sequencing-based simulation](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/d22e0c9b4574530a8ecbdf620638f2527ec20c5e/Simulation_seq_based/Generate_high_density_simulation_data/generate_simulated_spatial_data.nb.html) results, focusing on the performance of SDePER on Oligo. This analysis was first stratified by the total number of cells in spots then by the number of Oligo cells in spots to explore how the performance varies as the number of Oligo cells in a spot increases.
+
+2. **Identifying cell types with limited cells in reference scRNA-seq data**:
+
+    We performed analyses using SDePER on [STARmap-based simulated data with downsampled reference datasets](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/5dc5cf8a6d97237304017c260f96ed0d3e41cb51/Simulation/Generate_downsampled_ref_data/generate_downsampled_ref_data.nb.html). Specifically, we randomly downsampled the number of Oligo cells to 5, 10, 20, and 50 in both internal and external reference dataset. We then examined how the performance is affected by the increasing number of Oligo cells in the reference dataset.
+
+By conducting these analyses, we aim to understand the performance variations and limitations in identifying rare cell types under different conditions in spatial and scRNA-seq data.
+
+
+* **Inputs**:
+
+  * [`simulation_all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Figures/Simulation/simulation_all_results.rds): cell type deconvolution results of all methods, as well as the ground truth in *STARmap-based* simulation analysis.
+  * [`simulation_seq_based_high_density_all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Figures/Simulation_seq_based/simulation_seq_based_high_density_all_results.rds): cell type deconvolution results of SDePER and GLRM in *high density sequencing-based* simulation analysis, as well as the ground truth.
+  * [`sim_spatial_spot_ncell.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data/sim_spatial_spot_ncell.csv): number of cells in synthesized spatial spots in *STARmap-based* simulation analysis.
+  * [`sim_seq_based_3x_spatial_spot_ncell.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation_seq_based/Generate_high_density_simulation_data/sim_seq_based_3x_spatial_spot_ncell.csv): number of cells in synthesized spatial spots of **3x** setting in *high density sequencing-based* simulation analysis.
+  * [`sim_seq_based_6x_spatial_spot_ncell.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation_seq_based/Generate_high_density_simulation_data/sim_seq_based_6x_spatial_spot_ncell.csv): number of cells in synthesized spatial spots of **6x** setting in *high density sequencing-based* simulation analysis.
+  * [`simulation_downsampled_ref_all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Figures/Simulation/simulation_downsampled_ref_all_results.rds): cell type deconvolution results on *STARmap-based* simulated data with *downsampled reference*.
+  
+
+
+* **Outputs**:
+
+  * Figure. Plot of performance of SDePER on *STARmap-based* simulated data stratified by the number of Oligo cells per spot
+  * Figure. Plot of performance of SDePER on *high density sequencing-based* simulated data stratified by the number of Oligo cells per spot
+  * Figure. Plot of performance of SDePER on *STARmap-based* simulated data with *downsampled reference* stratified by the number of Oligo cells in reference
+
+
+
+# Version
+
+```{r}
+version[['version.string']]
+print(sprintf('Package %s version: %s', 'ggplot2', packageVersion('ggplot2')))
+print(sprintf('Package %s version: %s', 'ggpubr', packageVersion('ggpubr')))
+print(sprintf('Package %s version: %s', 'philentropy', packageVersion('philentropy'))) # JSD function
+```
+
+# Define functions
+
+## Target cell type
+
+```{r}
+target_ct = 'Oligo'
+```
+
+
+## QC function
+
+Check the order of spots and cell types are consistent before performance evaluation.
+
+Check whether negative values of estimated cell type proportions exist, as negative values may cause error in JSD calculation and got `NaN`. Replace them as 0.
+
+```{r}
+qc = function(results) {
+  for (scenario in names(results)) {
+    if (scenario != 'Truth') {
+      for (method_name in names(results[[scenario]])) {
+        stopifnot(all(row.names(results[[scenario]][[method_name]]) == row.names(results[['Truth']])))
+        stopifnot(all(colnames(results[[scenario]][[method_name]]) == colnames(results[['Truth']])))
+      }
+    }
+  }
+  
+  for (scenario in names(results)) {
+    if (scenario != 'Truth') {
+     for (method_name in names(results[[scenario]])) {
+        tmp_df = results[[scenario]][[method_name]]
+        for (i in 1:nrow(tmp_df)) {
+          for (j in 1:ncol(tmp_df)) {
+            if (tmp_df[i, j] < 0) {
+              stop(sprintf('%s: %s result: row %d (%s) column %d (%s) has negative value %g', scenario, method_name, i, row.names(tmp_df)[i], j, colnames(tmp_df)[j], tmp_df[i, j]))
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+
+## Function to calculate spot-wise performance of Oligo
+
+4 performance measurements:
+
+* root mean square error (**RMSE**) or Absolute Error since only one cell type: quantifies the estimation accuracy of Oligo
+* relative absolute error (**RAE**): RMSE divided by the true cell type proportion
+* false discovery rate (**FDR**): measures the proportion of spots where Oligo was falsely predicted to be present
+* false negative rate (**FNR**): measures the proportion of spots where Oligo was incorrectly classified as absent
+
+```{r}
+calcPerformance = function(truth, pred) {
+  # calculate RMSE, FDR and FNR for each row
+  # inputs are matrix with rows as spots and columns as cell types, order has been checked to be consistent
+  stopifnot(all(row.names(truth) == row.names(pred)))
+  stopifnot(all(colnames(truth) == colnames(pred)))
+  stopifnot(ncol(truth) == 1)
+  stopifnot(ncol(pred) == 1)
+  
+  perform_df = data.frame(RMSE=numeric(), RAE=numeric(), Result=character(), stringsAsFactors = F)
+  
+  for (i in 1:nrow(truth)) {
+    RMSE = abs(truth[i, 1] - pred[i, 1])
+    RAE = RMSE / truth[i, 1]
+    if (truth[i, 1] > 0 && pred[i, 1] == 0) {
+      result = 'FN'
+    } else if (truth[i, 1] > 0 && pred[i, 1] > 0) {
+      result =  'TP'
+    } else if (truth[i, 1] == 0 && pred[i, 1] > 0) {
+      result =  'FP'
+    } else if (truth[i, 1] == 0 && pred[i, 1] == 0) {
+      result = 'TN'
+    } else {
+      stop('unknown error!')
+    }
+    
+    perform_df[nrow(perform_df)+1, ] = list(RMSE, RAE, result)
+  }
+  
+  # also record spot names
+  stopifnot(nrow(perform_df) == nrow(truth))
+  perform_df['Spot'] = row.names(truth)
+  
+  return(perform_df)
+}
+```
+
+
+## Calculate spot-wise performance
+
+```{r}
+calcPerformanceAllSpots = function(results) {
+  performs = list()
+  for (scenario in names(results)) {
+    if (scenario != 'Truth') {
+      performs[[scenario]] = list()
+      for (method_name in names(results[[scenario]])) {
+        performs[[scenario]][[method_name]] = calcPerformance(as.matrix(results[['Truth']][, target_ct, drop=F]),
+                                                              as.matrix(results[[scenario]][[method_name]][, target_ct, drop=F]))
+      }
+    }
+  }
+  return(performs)
+}
+```
+
+
+## Summary spot-wise performance into method-wise
+
+We also calculate performance summary first stratified by the total number of cells in spots then by the number of Oligo cells in spots.
+
+```{r}
+summaryPerform = function(performs, total_ncell_df, ncell_df) {
+  
+  perform_raw_df = data.frame(Scenario=character(), Method=character(), Reference=character(), Spot=character(),
+                              nCell=integer(), RMSE=numeric(), RAE=numeric(), Result=character(), total_nCell=numeric(),
+                              stringsAsFactors = F)
+  
+  perform_median_df = data.frame(Scenario=character(), Method=character(), Reference=character(), total_nCell=numeric(),
+                                 nCell=integer(), median_RMSE=numeric(), median_RAE=numeric(), FDR=numeric(), FNR=numeric(),
+                                 stringsAsFactors = F)
+
+  for (scenario in names(performs)) {
+    if (scenario == "S1_int_ref") {
+      this_scenario = 'Scenario 1'
+      this_ref = 'Internal'
+    } else if (scenario == "S1_ext_ref") {
+      this_scenario = 'Scenario 1'
+      this_ref = 'External'
+    } else if (scenario == 'S2_ext_ref') {
+      this_scenario = 'Scenario 2'
+      this_ref = 'External'
+    } else {
+      this_scenario = 'Scenario 3'
+      this_ref = 'External'
+    }
+  
+    for (method_name in names(performs[[scenario]])) {
+      tmp_df = performs[[scenario]][[method_name]]
+      tmp_df['Scenario'] = this_scenario
+      tmp_df['Method'] = method_name
+      tmp_df['Reference'] = this_ref
+      
+      # combine number of cells in spot
+      tmp_df = merge(tmp_df, total_ncell_df, by.x = 'Spot', by.y = 'row.names')
+      tmp_df = merge(tmp_df, ncell_df, by.x = 'Spot', by.y = 'row.names')
+      perform_raw_df = rbind(perform_raw_df, tmp_df[, c('Scenario', 'Method', 'Reference', 'Spot', 'nCell', 'RMSE', 'RAE', 'Result', 'total_nCell')])
+    
+      # calculate FDR and FNR with different number of Oligo cells
+      for (total_count in unique(tmp_df$total_nCell)) {
+        tmp_sub_df_all = tmp_df %>%
+          filter(total_nCell == total_count)
+        for (x in unique(tmp_sub_df_all$nCell)) {
+          tmp_sub_df = tmp_sub_df_all %>%
+            filter(nCell == x)
+          TP = sum(tmp_sub_df$Result=='TP')
+          FP = sum(tmp_sub_df$Result=='FP')
+          FN = sum(tmp_sub_df$Result=='FN')
+          TN = sum(tmp_sub_df$Result=='TN')
+          # Calculate FDR (False Discovery Rate)
+          FDR = FP / (TP + FP)
+          # Calculate FNR (False Negative Rate)
+          FNR = FN / (TP + FN)
+          
+          # use list() instead of c() to keep data type, otherwise c() will coerce all elements to a common type like string
+          perform_median_df[nrow(perform_median_df)+1, ] = list(this_scenario, method_name, this_ref, total_count,
+                                                                x,
+                                                                round(median(tmp_sub_df$RMSE), 3),
+                                                                round(median(tmp_sub_df$RAE), 3),
+                                                                round(FDR, 3),
+                                                                round(FNR, 3))
+        }
+      }
+    }
+  }
+  
+  return(list(perform_raw_df, perform_median_df))
+}
+```
+
+
+Function to summary performance of running with downsampled reference. We add a variable to indicate number of Oligo cells in reference. We also discard RAE metric.
+
+```{r}
+summaryPerformDSRef = function(performs) {
+  
+  perform_raw_df = data.frame(Scenario=character(), Method=character(), Reference=character(), Spot=character(),
+                              nCell=character(), RMSE=numeric(), Result=character(),
+                              stringsAsFactors = F)
+  
+  perform_median_df = data.frame(Scenario=character(), Method=character(), Reference=character(),
+                                 nCell=character(), median_RMSE=numeric(), FDR=numeric(), FNR=numeric(),
+                                 stringsAsFactors = F)
+
+  for (scenario in names(performs)) {
+    if (scenario == "S1_int_ref") {
+      this_scenario = 'Scenario 1'
+      this_ref = 'Internal'
+    } else if (scenario == "S1_ext_ref") {
+      this_scenario = 'Scenario 1'
+      this_ref = 'External'
+    } else if (scenario == 'S2_ext_ref') {
+      this_scenario = 'Scenario 2'
+      this_ref = 'External'
+    } else {
+      this_scenario = 'Scenario 3'
+      this_ref = 'External'
+    }
+  
+    for (method_name in names(performs[[scenario]])) {
+      tmp_df = performs[[scenario]][[method_name]]
+      tmp_df['Scenario'] = this_scenario
+      tmp_df['Reference'] = this_ref
+      
+      tmp_vec = unlist(strsplit(method_name, '_'))  # recorded method name is SDePER_xOligo, GLRM_xOligo, ...
+      tmp_df['Method'] = tmp_vec[1]
+      tmp_df['nCell'] = substr(tmp_vec[2], 1, nchar(tmp_vec[2])-5)
+    
+      perform_raw_df = rbind(perform_raw_df, tmp_df[, c('Scenario', 'Method', 'Reference', 'Spot', 'nCell', 'RMSE', 'Result')])
+    
+      # calculate FDR and FNR with different number of Oligo cells
+      for (x in unique(tmp_df$nCell)) {
+        tmp_sub_df = tmp_df %>%
+          filter(nCell == x)
+        TP = sum(tmp_sub_df$Result=='TP')
+        FP = sum(tmp_sub_df$Result=='FP')
+        FN = sum(tmp_sub_df$Result=='FN')
+        TN = sum(tmp_sub_df$Result=='TN')
+        # Calculate FDR (False Discovery Rate)
+        FDR = FP / (TP + FP)
+        # Calculate FNR (False Negative Rate)
+        FNR = FN / (TP + FN)
+    
+        # use list() instead of c() to keep data type, otherwise c() will coerce all elements to a common type like string
+        perform_median_df[nrow(perform_median_df)+1, ] = list(this_scenario, tmp_vec[1], this_ref,
+                                                              x,
+                                                              round(median(tmp_sub_df$RMSE), 3),
+                                                              round(FDR, 3),
+                                                              round(FNR, 3))
+      }
+    }
+  }
+  
+  return(list(perform_raw_df, perform_median_df))
+}
+```
+
+
+
+## Function to draw figure of performance by #Oligos in spots
+
+one boxplot of RMSE or RAE and one barplot of FNR.
+
+FDR will always be 0 since we only examine spots where specific cell types are present.
+
+```{r, fig.width=4, fig.height=6}
+onePlot = function(perform_raw_df, perform_median_df, draw_metric, fig_title, keep_legend=T, show_y_title=T, show_y_text=T, show_x_text=T, ylims=NULL) {
+  
+  this_total_num = unique(perform_median_df$total_nCell)
+  
+  # a function to takes the breaks in x axis as input and returns corresponding labels as output
+  label_function = function(x) {
+    return(sprintf("%s (%.0f%%)", x, as.numeric(x)/this_total_num*100))
+  }
+  
+  plot_df = perform_raw_df %>%
+    filter(nCell > 0)
+  # Specify the levels in ascending order
+  plot_df$nCell = factor(plot_df$nCell, levels = sort(unique(plot_df$nCell)))
+  
+  # if no recordings, return a placeholder empty plot
+  if (nrow(plot_df) == 0) {
+    return(ggplot() + geom_blank() + theme_void())
+  }
+  
+  g_list = list()
+
+  g_list[[1]] = ggplot(plot_df, aes(x=nCell, y=.data[[draw_metric]], fill=Method)) +
+    geom_boxplot(outlier.shape=NA) +
+    scale_fill_manual(values=method_color) +
+    scale_x_discrete(labels=label_function) +
+    theme_classic() +
+    theme(strip.text=element_text(size=10),
+          axis.text=element_text(color="black"),
+          axis.ticks.x=element_blank(),
+          axis.title.x=element_blank(),
+          legend.title=element_blank(),
+          axis.text.x=element_text(angle = 45, hjust = 1)) +
+          facet_grid(~Reference) +
+    ggtitle(fig_title)
+  
+  
+  plot_df = perform_median_df %>%
+    filter(nCell > 0)
+  # Specify the levels in ascending order
+  plot_df$nCell = factor(plot_df$nCell, levels = sort(unique(plot_df$nCell)))
+  
+  # add a black outline of bar to show the bar when y=0
+  g_list[[2]] = ggplot(plot_df, aes(x=nCell, y=FNR, fill=Method)) +
+    geom_bar(stat="identity", position=position_dodge(), colour="black") +
+    scale_fill_manual(values=method_color) +
+    scale_x_discrete(labels=label_function) +
+    theme_classic() +
+    theme(strip.text=element_text(size=10),
+          axis.text=element_text(color="black"),
+          axis.ticks.x=element_blank(),
+          axis.title.x=element_blank(),
+          legend.title=element_blank(),
+          axis.text.x=element_text(angle = 45, hjust = 1)) +
+          facet_grid(~Reference)
+  
+  # set y axis for better visualization
+  # NOTE ylim directly changes the scale and excludes data outside the specified limits from the plot and any computations
+  # use coord_cartesian() instead which changes the view to the specified y-axis range without excluding data points from calculations
+  if (!is.null(ylims)) {
+    for (i in 1:length(g_list)) {
+      g_list[[i]] = g_list[[i]] + coord_cartesian(ylim = ylims[[i]]) # Adjust view without removing data
+    }
+  }
+  
+  if (!show_y_title) {
+    for (i in 1:length(g_list)) {
+      g_list[[i]] = g_list[[i]] + theme(axis.title.y = element_blank())
+    }
+  }
+  
+  if (!show_y_text) {
+    for (i in 1:length(g_list)) {
+      g_list[[i]] = g_list[[i]] + theme(axis.text.y = element_blank())
+    }
+  }
+  
+  if (!show_x_text) {
+    g_list[[1]] = g_list[[1]] + theme(axis.text.x = element_blank())
+    this_heights = c(0.75, 1) # leave a bit less height to upper figure since no x axis text is shown
+  } else {
+    this_heights = 1
+  }
+  
+  if (keep_legend) {
+    this_legend_pos = 'right'
+  } else {
+    this_legend_pos = 'none'
+  }
+  
+  return(ggpubr::ggarrange(plotlist=g_list, ncol=1, nrow=2, align = 'v', common.legend=TRUE, legend=this_legend_pos, heights=this_heights))
+}
+```
+
+
+## Function to draw figure of performance by #Oligos in reference
+
+one boxplot of RMSE and two barplots of FNR and FDR.
+
+```{r, fig.width=4, fig.height=6}
+onePlotDS = function(perform_raw_df, perform_median_df, keep_legend=T, show_y_title=T, show_y_text=T, show_x_text=T, ylims=NULL, labels=NULL) {
+  # already nCell changed to factor
+  g_list = list()
+
+  g_list[['RMSE']] = ggplot(perform_raw_df, aes(x=nCell, y=RMSE, fill=Method)) +
+    geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+    scale_fill_manual(values=method_color) +
+    theme_classic() +
+    theme(strip.text = element_text(size=10),
+          axis.text = element_text(color="black"),
+          axis.ticks.x = element_blank(),
+          axis.title.x = element_blank(),
+          legend.title = element_blank()) +
+          facet_grid(~Reference)
+
+  # add a black outline of bar to show the bar when y=0
+  g_list[['FNR']] = ggplot(perform_median_df, aes(x=nCell, y=FNR, fill=Method)) +
+    geom_bar(stat="identity", position=position_dodge(), colour="black") +
+    scale_fill_manual(values=method_color) +
+    theme_classic() +
+    theme(strip.text = element_text(size=10),
+          axis.text = element_text(color="black"),
+          axis.ticks.x = element_blank(),
+          axis.title.x = element_blank(),
+          legend.title = element_blank()) +
+          facet_grid(~Reference)
+  
+  g_list[['FDR']] = ggplot(perform_median_df, aes(x=nCell, y=FDR, fill=Method)) +
+    geom_bar(stat="identity", position=position_dodge(), colour="black") +
+    scale_fill_manual(values=method_color) +
+    theme_classic() +
+    theme(strip.text = element_text(size=10),
+          axis.text = element_text(color="black"),
+          axis.ticks.x = element_blank(),
+          axis.title.x = element_blank(),
+          legend.title = element_blank()) +
+          facet_grid(~Reference)
+  
+  # set y axis for better visualization
+  # NOTE ylim directly changes the scale and excludes data outside the specified limits from the plot and any computations
+  # use coord_cartesian() instead which changes the view to the specified y-axis range without excluding data points from calculations
+  if (!is.null(ylims)) {
+    for (i in 1:length(g_list)) {
+      g_list[[i]] = g_list[[i]] + coord_cartesian(ylim = ylims[[i]]) # Adjust view without removing data
+    }
+  }
+  
+  if (!show_y_title) {
+    for (i in 1:length(g_list)) {
+      g_list[[i]] = g_list[[i]] + theme(axis.title.y = element_blank())
+    }
+  }
+  
+  if (!show_y_text) {
+    for (i in 1:length(g_list)) {
+      g_list[[i]] = g_list[[i]] + theme(axis.text.y = element_blank())
+    }
+  }
+  
+  if (!show_x_text) {
+    g_list[[1]] = g_list[[1]] + theme(axis.text.x = element_blank())
+    g_list[[2]] = g_list[[2]] + theme(axis.text.x = element_blank())
+    this_heights = c(0.95, 0.95, 1) # leave a bit less height to upper figure since no x axis text is shown
+  } else {
+    this_heights = 1
+  }
+  
+  if (keep_legend) {
+    this_legend_pos = 'right'
+  } else {
+    this_legend_pos = 'none'
+  }
+  
+  return(ggpubr::ggarrange(plotlist=g_list, ncol=1, nrow=3, align = 'v', common.legend=TRUE, legend=this_legend_pos, heights=this_heights))
+}
+```
+
+
+
+# Performance by #Oligos in spot: STARmap-based simulation
+
+## Read estimated cell type proportions
+
+We only use SDePER result in Scenario 1.
+
+```{r}
+file_name = file.path('simulation_all_results.rds')
+all_res_tmp = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+
+all_res = list()
+all_res$Truth = all_res_tmp$Truth
+all_res$S1_int_ref = list()
+all_res$S1_int_ref$SDePER = all_res_tmp$S1_int_ref$SDePER
+all_res$S1_ext_ref = list()
+all_res$S1_ext_ref$SDePER = all_res_tmp$S1_ext_ref$SDePER
+
+rm(all_res_tmp)
+```
+
+
+Quality control.
+
+```{r}
+qc(all_res)
+```
+
+
+## Read recording of number of cells per spot
+
+```{r}
+file_name = file.path(home.dir, 'sim_spatial_spot_ncell.csv')
+ncell_1x = read.csv(file_name, row.names = 1, check.names = F)
+print(sprintf('load data from %s', file_name))
+
+stopifnot(all(row.names(ncell_1x) == row.names(all_res$Truth)))
+print(sprintf('number of cells of all spots: min: %d; max: %d', min(ncell_1x$nCell), max(ncell_1x$nCell)))
+
+# rename column
+colnames(ncell_1x) = 'total_nCell'
+table(ncell_1x$total_nCell)
+```
+
+Calculate number of Oligo cells in each spot.
+
+```{r}
+# note to round to nearest integer
+nOligo_1x = round(ncell_1x * all_res$Truth$Oligo)
+nOligo_1x$total_nCell = as.integer(nOligo_1x$total_nCell)
+# rename column
+colnames(nOligo_1x) = 'nCell'
+table(nOligo_1x$nCell)
+```
+
+
+## Evaluate performance of *Oligo*
+
+```{r}
+tmp_list = summaryPerform(calcPerformanceAllSpots(all_res), ncell_1x, nOligo_1x)
+perform_raw_df = tmp_list[[1]]
+perform_median_df = tmp_list[[2]]
+perform_median_df[, c('Scenario', 'Method', 'Reference', 'total_nCell', 'nCell', 'median_RMSE', 'median_RAE', 'FDR', 'FNR')]
+```
+
+
+## Draw figures
+
+We included spots with total number of cells from 3 to 6 only, then stratified by number of Oligo cells in spots.
+
+### RMSE & FNR
+
+```{r, fig.width=10, fig.height=4}
+num_row = 1
+num_col = 4
+
+num_cells = 3:6
+
+g_list = list()
+for (i in 1:length(num_cells)) {
+  if (i %% num_col == 1) {
+    this_show_y_title = T
+    this_show_y_text = T
+  } else {
+    this_show_y_title = F
+    this_show_y_text = F
+  }
+  
+  this_cell_count = num_cells[i]
+  g_list[[length(g_list)+1]] = onePlot(perform_raw_df %>% filter(total_nCell==this_cell_count),
+                                       perform_median_df %>% filter(total_nCell==this_cell_count),
+                                       'RMSE', paste('n=', this_cell_count, sep=''),
+                                       show_x_text = F, show_y_title = this_show_y_title, keep_legend = F,
+                                       ylims = list(c(0, 0.65), c(0, 0.4)), show_y_text = this_show_y_text)
+}
+
+ggpubr::ggarrange(plotlist=g_list, ncol=num_col, nrow=num_row, align='h', widths = c(1.2, 1, 1, 1))
+```
+
+
+### RAE & FNR
+
+```{r, fig.width=10, fig.height=4}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig_STARmap_based_Oligo_performance.pdf')
+  cairo_pdf(file_name, height=4, width=10, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+num_row = 1
+num_col = 4
+
+num_cells = 3:6
+
+g_list = list()
+for (i in 1:length(num_cells)) {
+  if (i %% num_col == 1) {
+    this_show_y_title = T
+    this_show_y_text = T
+  } else {
+    this_show_y_title = F
+    this_show_y_text = F
+  }
+  
+  this_cell_count = num_cells[i]
+  g_list[[length(g_list)+1]] = onePlot(perform_raw_df %>% filter(total_nCell==this_cell_count),
+                                       perform_median_df %>% filter(total_nCell==this_cell_count),
+                                       'RAE', paste('n=', this_cell_count, sep=''),
+                                       show_x_text = F, show_y_title = this_show_y_title, keep_legend = F,
+                                       ylims = list(c(0, 2), c(0, 0.4)), show_y_text = this_show_y_text)
+}
+
+ggpubr::ggarrange(plotlist=g_list, ncol=num_col, nrow=num_row, align='h', widths = c(1.2, 1, 1, 1))
+```
+
+
+
+# Performance by #Oligos in spot: High density sequencing-based simulation
+
+## Read estimated cell type proportions
+
+```{r}
+file_name = file.path(home.dir, 'simulation_seq_based_high_density_all_results.rds')
+all_res_hq = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+
+stopifnot(all(row.names(all_res$Truth) == row.names(all_res_hq$Truth)))
+stopifnot(all(colnames(all_res$Truth) == colnames(all_res_hq$Truth)))
+stopifnot(all(all_res$Truth == all_res_hq$Truth))
+```
+
+Quality control.
+
+```{r}
+qc(all_res_hq)
+```
+
+
+## Read recording of number of cells per spot
+
+```{r}
+file_name = file.path(home.dir, 'sim_seq_based_3x_spatial_spot_ncell.csv')
+ncell_3x = read.csv(file_name, row.names = 1, check.names = F)
+print(sprintf('load data from %s', file_name))
+
+stopifnot(all(row.names(ncell_3x) == row.names(all_res_hq$Truth)))
+print(sprintf('3x setting: number of cells of all spots: min: %d; max: %d', min(ncell_3x$nCell), max(ncell_3x$nCell)))
+
+# rename column
+colnames(ncell_3x) = 'total_nCell'
+
+
+file_name = file.path(home.dir, 'sim_seq_based_6x_spatial_spot_ncell.csv')
+ncell_6x = read.csv(file_name, row.names = 1, check.names = F)
+print(sprintf('load data from %s', file_name))
+
+stopifnot(all(row.names(ncell_6x) == row.names(all_res_hq$Truth)))
+print(sprintf('6x setting: number of cells of all spots: min: %d; max: %d', min(ncell_6x$nCell), max(ncell_6x$nCell)))
+
+# rename column
+colnames(ncell_6x) = 'total_nCell'
+```
+
+
+Calculate number of Oligo cells in each spot.
+
+```{r}
+# note to round to nearest integer
+nOligo_3x = round(ncell_3x * all_res_hq$Truth$Oligo)
+nOligo_3x$total_nCell = as.integer(nOligo_3x$total_nCell)
+# rename column
+colnames(nOligo_3x) = 'nCell'
+print('3x setting')
+table(nOligo_3x$nCell)
+
+nOligo_6x = round(ncell_6x * all_res_hq$Truth$Oligo)
+nOligo_6x$total_nCell = as.integer(nOligo_6x$total_nCell)
+# rename column
+colnames(nOligo_6x) = 'nCell'
+print('6x setting')
+table(nOligo_6x$nCell)
+```
+
+
+## Evaluate performance of *Oligo*
+
+```{r}
+perform_raw_df = data.frame()
+perform_median_df = data.frame()
+
+for (x in c('1x', '3x', '6x')) {
+  # subset results for only one density setting
+  tmp_res = list()
+  tmp_res$Truth = all_res_hq$Truth
+  tmp_res$S1_int_ref = list()
+  tmp_res$S1_int_ref$SDePER = all_res_hq$S1_int_ref[[paste('SDePER', x, sep='_')]]
+  tmp_res$S1_ext_ref = list()
+  tmp_res$S1_ext_ref$SDePER = all_res_hq$S1_ext_ref[[paste('SDePER', x, sep='_')]]
+  
+  if (x == '1x') {
+    tmp_list = summaryPerform(calcPerformanceAllSpots(tmp_res), ncell_1x, nOligo_1x)
+  } else if (x == '3x') {
+    tmp_list = summaryPerform(calcPerformanceAllSpots(tmp_res), ncell_3x, nOligo_3x)
+  } else if (x == '6x') {
+    tmp_list = summaryPerform(calcPerformanceAllSpots(tmp_res), ncell_6x, nOligo_6x)
+  }
+  
+  tmp_raw_df = tmp_list[[1]]
+  tmp_raw_df$Dataset = x
+  tmp_median_df = tmp_list[[2]]
+  tmp_median_df$Dataset = x
+  
+  perform_raw_df = rbind(perform_raw_df, tmp_raw_df)
+  perform_median_df = rbind(perform_median_df, tmp_median_df)
+}
+
+perform_median_df[, c('Dataset', 'Scenario', 'Method', 'Reference', 'total_nCell', 'nCell', 'median_RMSE', 'FDR', 'FNR')]
+```
+
+
+## Draw figures
+
+We included spots with total number of cells from 3 to 6 only, then stratified by number of Oligo cells in spots.
+
+### 1x setting
+
+#### RMSE & FNR
+
+```{r, fig.width=10, fig.height=4}
+num_row = 1
+num_col = 4
+
+num_cells = 3:6
+
+g_list = list()
+for (i in 1:length(num_cells)) {
+  if (i %% num_col == 1) {
+    this_show_y_title = T
+    this_show_y_text = T
+  } else {
+    this_show_y_title = F
+    this_show_y_text = F
+  }
+  
+  this_cell_count = num_cells[i]
+  g_list[[length(g_list)+1]] = onePlot(perform_raw_df %>% filter(Dataset == '1x' & total_nCell==this_cell_count),
+                                       perform_median_df %>% filter(Dataset == '1x' & total_nCell==this_cell_count),
+                                       'RMSE', paste('n=', this_cell_count, sep=''),
+                                       show_x_text = F, show_y_title = this_show_y_title, keep_legend = F,
+                                       ylims = list(c(0, 0.6), c(0, 0.7)), show_y_text = this_show_y_text)
+}
+
+ggpubr::ggarrange(plotlist=g_list, ncol=num_col, nrow=num_row, align='h', widths = c(1.2, 1, 1, 1))
+```
+
+
+#### RAE & FNR
+
+```{r, fig.width=10, fig.height=4}
+num_row = 1
+num_col = 4
+
+num_cells = 3:6
+
+g_list = list()
+for (i in 1:length(num_cells)) {
+  if (i %% num_col == 1) {
+    this_show_y_title = T
+    this_show_y_text = T
+  } else {
+    this_show_y_title = F
+    this_show_y_text = F
+  }
+  
+  this_cell_count = num_cells[i]
+  g_list[[length(g_list)+1]] = onePlot(perform_raw_df %>% filter(Dataset == '1x' & total_nCell==this_cell_count),
+                                       perform_median_df %>% filter(Dataset == '1x' & total_nCell==this_cell_count),
+                                       'RAE', paste('n=', this_cell_count, sep=''),
+                                       show_x_text = F, show_y_title = this_show_y_title, keep_legend = F,
+                                       ylims = list(c(0, 1.2), c(0, 0.7)), show_y_text = this_show_y_text)
+}
+
+ggpubr::ggarrange(plotlist=g_list, ncol=num_col, nrow=num_row, align='h', widths = c(1.2, 1, 1, 1))
+```
+
+
+### 3x setting
+
+#### RMSE & FNR
+
+```{r, fig.width=10, fig.height=4}
+num_row = 1
+num_col = 4
+
+num_cells = (3:6) * 3
+
+g_list = list()
+for (i in 1:length(num_cells)) {
+  if (i %% num_col == 1) {
+    this_show_y_title = T
+    this_show_y_text = T
+  } else {
+    this_show_y_title = F
+    this_show_y_text = F
+  }
+  
+  this_cell_count = num_cells[i]
+  g_list[[length(g_list)+1]] = onePlot(perform_raw_df %>% filter(Dataset == '3x' & total_nCell==this_cell_count),
+                                       perform_median_df %>% filter(Dataset == '3x' & total_nCell==this_cell_count),
+                                       'RMSE', paste('n=', this_cell_count, sep=''),
+                                       show_x_text = F, show_y_title = this_show_y_title, keep_legend = F,
+                                       ylims = list(c(0, 0.48), c(0, 0.12)), show_y_text = this_show_y_text)
+}
+
+ggpubr::ggarrange(plotlist=g_list, ncol=num_col, nrow=num_row, align='h', widths = c(1.2, 1, 1, 1))
+```
+
+
+#### RAE & FNR
+
+```{r, fig.width=10, fig.height=4}
+num_row = 1
+num_col = 4
+
+num_cells = (3:6) * 3
+
+g_list = list()
+for (i in 1:length(num_cells)) {
+  if (i %% num_col == 1) {
+    this_show_y_title = T
+    this_show_y_text = T
+  } else {
+    this_show_y_title = F
+    this_show_y_text = F
+  }
+  
+  this_cell_count = num_cells[i]
+  g_list[[length(g_list)+1]] = onePlot(perform_raw_df %>% filter(Dataset == '3x' & total_nCell==this_cell_count),
+                                       perform_median_df %>% filter(Dataset == '3x' & total_nCell==this_cell_count),
+                                       'RAE', paste('n=', this_cell_count, sep=''),
+                                       show_x_text = F, show_y_title = this_show_y_title, keep_legend = F,
+                                       ylims = list(c(0, 1.15), c(0, 0.12)), show_y_text = this_show_y_text)
+}
+
+ggpubr::ggarrange(plotlist=g_list, ncol=num_col, nrow=num_row, align='h', widths = c(1.2, 1, 1, 1))
+```
+
+
+### 6x setting
+
+#### RMSE & FNR
+
+```{r, fig.width=10, fig.height=4}
+num_row = 1
+num_col = 4
+
+num_cells = (3:6) * 6
+
+g_list = list()
+for (i in 1:length(num_cells)) {
+  if (i %% num_col == 1) {
+    this_show_y_title = T
+    this_show_y_text = T
+  } else {
+    this_show_y_title = F
+    this_show_y_text = F
+  }
+  
+  this_cell_count = num_cells[i]
+  g_list[[length(g_list)+1]] = onePlot(perform_raw_df %>% filter(Dataset == '6x' & total_nCell==this_cell_count),
+                                       perform_median_df %>% filter(Dataset == '6x' & total_nCell==this_cell_count),
+                                       'RMSE', paste('n=', this_cell_count, sep=''),
+                                       show_x_text = F, show_y_title = this_show_y_title, keep_legend = F,
+                                       ylims = list(c(0, 0.45), c(0, 0.3)), show_y_text = this_show_y_text)
+}
+
+ggpubr::ggarrange(plotlist=g_list, ncol=num_col, nrow=num_row, align='h', widths = c(1.2, 1, 1, 1))
+```
+
+
+#### RAE & FNR
+
+```{r, fig.width=10, fig.height=4}
+num_row = 1
+num_col = 4
+
+num_cells = (3:6) * 6
+
+g_list = list()
+for (i in 1:length(num_cells)) {
+  if (i %% num_col == 1) {
+    this_show_y_title = T
+    this_show_y_text = T
+  } else {
+    this_show_y_title = F
+    this_show_y_text = F
+  }
+  
+  this_cell_count = num_cells[i]
+  g_list[[length(g_list)+1]] = onePlot(perform_raw_df %>% filter(Dataset == '6x' & total_nCell==this_cell_count),
+                                       perform_median_df %>% filter(Dataset == '6x' & total_nCell==this_cell_count),
+                                       'RAE', paste('n=', this_cell_count, sep=''),
+                                       show_x_text = F, show_y_title = this_show_y_title, keep_legend = F,
+                                       ylims = list(c(0, 1.2), c(0, 0.3)), show_y_text = this_show_y_text)
+}
+
+ggpubr::ggarrange(plotlist=g_list, ncol=num_col, nrow=num_row, align='h', widths = c(1.2, 1, 1, 1))
+```
+
+
+
+
+# Performance by #Oligos in downsampled ref: STARmap-based simulation
+
+## Read estimated cell type proportions
+
+```{r}
+file_name = file.path(home.dir, 'simulation_downsampled_ref_all_results.rds')
+all_res_tmp = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+
+all_res_ds = list()
+all_res_ds$Truth = all_res_tmp$Truth
+all_res_ds$S1_int_ref = all_res_tmp$Oligo$S1_int_ref
+all_res_ds$S1_ext_ref = all_res_tmp$Oligo$S1_ext_ref
+
+stopifnot(all(row.names(all_res$Truth) == row.names(all_res_ds$Truth)))
+stopifnot(all(colnames(all_res$Truth) == colnames(all_res_ds$Truth)))
+stopifnot(all(all_res$Truth == all_res_ds$Truth))
+
+rm(all_res_tmp)
+```
+
+
+Quality control.
+
+```{r}
+qc(all_res_ds)
+```
+
+
+## Evaluate performance of *Oligo*
+
+```{r}
+tmp_list = summaryPerformDSRef(calcPerformanceAllSpots(all_res_ds))
+perform_raw_df = tmp_list[[1]]
+perform_median_df = tmp_list[[2]]
+
+perform_median_df[, c('Scenario', 'Method', 'Reference', 'nCell', 'median_RMSE', 'FDR', 'FNR')]
+```
+
+
+## Draw figures
+
+```{r, fig.width=4, fig.height=4}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig_STARmap_based_downsample_ref_Oligo_performance.pdf')
+  cairo_pdf(file_name, height=4, width=4, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+plot_df = perform_raw_df %>%
+  filter(Method == 'SDePER')
+plot_df$nCell = factor(plot_df$nCell, levels = c("5", "10", "20", "50", "all"))
+
+plot_median_df = perform_median_df %>%
+  filter(Method == 'SDePER')
+plot_median_df$nCell = factor(plot_median_df$nCell, levels = c("5", "10", "20", "50", "all"))
+
+onePlotDS(plot_df, plot_median_df, show_x_text = F, keep_legend = F, ylims = list(c(0, 0.35), NULL, NULL))
+```
+
+
