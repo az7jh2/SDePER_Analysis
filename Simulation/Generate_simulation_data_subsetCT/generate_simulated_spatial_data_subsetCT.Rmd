@@ -1,0 +1,341 @@
+---
+title: "Generate simulated spatial transcriptomic dataset from STARmap dataset with subset of cell types"
+author: "Ningshan Li & Yunqing Liu"
+date: "2023/06/28"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+library(dplyr)
+library(ggplot2)
+library(scatterpie)
+library(igraph)
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/Spatial/Simulation/Generate_simulation_data_subsetCT'
+
+
+my.distinct.colors20 = c("#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe", "#008080", "#9a6324", "#800000", "#aaffc3", "#808000", "#000075", "#808080", "#e6beff", "#ffd8b1", "#000000")
+
+my.distinct.colors40 = c("#00ff00","#ff4500","#00ced1","#556b2f","#a0522d","#8b0000","#808000","#483d8b","#008000","#008080","#4682b4","#000080","#9acd32","#daa520","#7f007f","#8fbc8f","#b03060","#d2b48c","#696969","#ff8c00","#00ff7f","#dc143c","#f4a460","#0000ff","#a020f0","#adff2f","#ff00ff","#1e90ff","#f0e68c","#fa8072","#ffff54","#dda0dd","#87ceeb","#7b68ee","#ee82ee","#98fb98","#7fffd4","#ffb6c1","#dcdcdc","#000000")
+```
+
+
+# Version
+
+```{r}
+version[['version.string']]
+```
+
+
+# Load manually cruated STARmap dataset
+
+This **single-cell resolution** spatial transcriptomics dataset contains two independent experiments on **mouse primary visual cortex** ( [publication](https://www.science.org/doi/10.1126/science.aat5691)), and both experiments are included in our analysis. The physical locations and gene expression profiles (raw nUMIs) of the selected cells are manually curated and saved into a R object [`CoarseGrain_Data.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data/CoarseGrain_Data.rds). After loading data, it's a list containing the meta data (in slot `meta`) and gene raw nUMI (in slot `count`)
+
+```{r}
+file_name = file.path(home.dir, 'CoarseGrain_Data.rds')
+org_data = readRDS(file_name)
+meta_data = org_data$meta
+gene_count = org_data$count
+rm(org_data)
+print(sprintf('load data from %s', file_name))
+
+# first 12 gene names need to exclude the first Character "X"
+for (i in 1:12) {
+  colnames(gene_count)[i] = substr(colnames(gene_count)[i], 2, nchar(colnames(gene_count)[i]))
+}
+```
+
+We only include **2,002 cells** across **12 cell types** which overlaps with the paired reference scRNA-seq dataset. **No further filtering on genes or cells**!
+
+```{r}
+print(sprintf('total %d cells, %d genes', nrow(gene_count), ncol(gene_count)))
+```
+
+Columns in meta data:
+
+* `index`: cell barcode
+* `dat`: 1 or 2, indicating cell is from 1st or 2nd experiment
+* `cluster_name`: cell type annotation
+* `X`, `Y`: physical locations (in pixels) of cells. We manually add a **4500 pixels offset** on `X` coordinate of cells from 1st experiment
+
+Number of cells of each select cell type is shown as below
+
+```{r}
+stopifnot(all(meta_data$index == row.names(gene_count)))
+
+table(as.character(meta_data$cluster_name))
+```
+
+
+# Subset cell types
+
+We selected *eL2/3*, *eL4*, *eL5*, *eL6*, *Oligo* cells only.
+
+```{r}
+select_cts = c('eL2/3', 'eL4', 'eL5', 'eL6', 'Oligo')
+meta_data = meta_data %>%
+  filter(cluster_name %in% select_cts)
+gene_count = gene_count[meta_data$index, ]
+
+print(sprintf('remain %d cells, %d genes', nrow(gene_count), ncol(gene_count)))
+```
+
+
+
+# Generate squre pseudo-spots by *coarse-graining*
+
+We defined a square with **500×500** pixels (**~51.5 μm**) as one pseudo-spot, and all cells falling into this square area are considered as cells in this pseudo-spot.
+
+In total we get **581** square pseudo-spots, and each square pseudo-spot contains 1 to at most 12 cells (at most 6 different cell types)
+
+The nUMI count of gene $j$ for a given pseudo-spot consisting of cells $i=1,…,n$ are defined as:
+$$nUMI_j=\frac{∑_i^n (x_{ij}/N_i)} {n} )×1,000$$
+where $x_{ij}$ is nUMI of gene $j$ for cell $i$ and $N_i$ is the sequencing depth (sum of nUMI of all genes) of cell $i$.
+
+```{r}
+#dat:meta.data for cell-level spatial data; count:data.frame of count data for cell-level spatial data
+create_grid<-function(dat,count,x="X",y="Y",index="index",cluster="louvain",breaks=200){
+    seq_depth<-rowSums(count)
+    if(is.factor(dat[,cluster])){dat[,cluster]<-factor(dat[,cluster])}
+    range_x<-range(dat[,x])
+    range_y<-range(dat[,y])
+    x_start<-floor(range_x[1])
+    x_end<-ceiling(range_x[2])
+    grid_x<-seq(x_start,x_end,breaks)
+    y_start<-floor(range_y[1])
+    y_end<-ceiling(range_y[2])
+    grid_y<-seq(y_start,y_end,breaks)
+    grid_table<-ct_table<-data.frame(ncell=numeric(),x=numeric(),y=numeric())
+    #grid_table<-matrix(0,nrow=length(grid_y),ncol=length(grid_x))
+    ct_table<-grid_table
+    spot_exp<-list()
+    #rownames(grid_table)<-grid_y
+    #colnames(grid_table)<-grid_x
+    if(max(grid_x)<x_end){grid_x<-c(grid_x,max(grid_x)+breaks)}
+    if(max(grid_y)<y_end){grid_y<-c(grid_y,max(grid_y)+breaks)}
+    ncell_fov<-nrow(dat)
+    for(i in 1:(length(grid_y)-1)){
+        for(j in 1:(length(grid_x)-1)){
+            fall_id<-which(dat[,x]>=grid_x[j] & dat[,x]<grid_x[j+1] & dat[,y]>=grid_y[i] & dat[,y]<grid_y[i+1])
+            grid_table<-rbind(grid_table,c(ncell=length(fall_id),x=grid_x[j],y=grid_y[i]))
+            ct_table<-rbind(ct_table,c(nct=length(unique(dat[fall_id,cluster])),x=grid_x[j],y=grid_y[i]))
+            spot_exp<-c(spot_exp,list(ceiling(colSums(count[dat[fall_id,index],]/(seq_depth[dat[fall_id,index]]*length(fall_id))*scaler))))
+            names(spot_exp)[length(spot_exp)]<-paste0("x",grid_x[j],"y",grid_y[i])
+            tmp_prop<-data.frame(cbind(t(as.matrix(table(dat[fall_id,cluster])/sum(table(dat[fall_id,cluster])),nrow=1,drop=F)),x=grid_x[j],y=grid_y[i]))
+            if(i==1&j==1){grid_prop=tmp_prop}else(grid_prop=rbind(grid_prop,tmp_prop))
+        }
+    }
+    colnames(grid_table)<-c("ncell","x","y")
+    colnames(ct_table)<-c("nct","x","y")
+    spot_exp_mat<-Reduce(cbind,spot_exp)
+    colnames(spot_exp_mat)<-names(spot_exp)
+    nonempty_cell<-which(grid_table$ncell!=0)
+    grid_table=grid_table[nonempty_cell,]
+    ct_table=ct_table[nonempty_cell,]
+    grid_prop=grid_prop[nonempty_cell,]
+    spot_exp_mat=spot_exp_mat[,nonempty_cell]
+    return(list(ncell_grid=grid_table,nct_grid=ct_table,prop_grid=grid_prop,spatial_exp=spot_exp_mat))
+}
+
+# spatial_exp is the generated coarse graining expression data
+scaler=1000
+grid_l=500
+starmap_res = create_grid(meta_data, gene_count, cluster="cluster_name", breaks=grid_l)
+
+print(sprintf('got %d spots', nrow(starmap_res$ncell_grid)))
+print('number of cells in spots')
+print(table(starmap_res$ncell_grid$ncell))
+print('number of cell types in spots')
+print(table(starmap_res$nct_grid$nct))
+```
+
+
+Locations of cells with grid showing the square pseudo-spots
+
+```{r, fig.width=6.5, fig.height=7}
+ggplot(meta_data, aes(x=X, y=Y, color=cluster_name)) +
+  geom_point() +
+  scale_color_manual(values=my.distinct.colors20) +
+  scale_x_continuous(minor_breaks=seq(min(meta_data$X)-grid_l, max(meta_data$X)+grid_l, grid_l)) +
+  scale_y_continuous(minor_breaks=seq(min(meta_data$Y)-grid_l, max(meta_data$Y)+grid_l, grid_l)) +
+  theme_gray() +
+  theme(legend.title=element_blank(), legend.text=element_text(size=12),
+        panel.grid.major = element_line(size = 0.5, linetype = 'solid', colour = "blue"), 
+        panel.grid.minor = element_line(size = 0.5, linetype = 'solid', colour = "blue"))
+```
+
+
+Pie chart of cell type proportions of square pseudo-spots
+
+```{r, fig.width=6.5, fig.height=7}
+# rename cell type eL2.3 to eL2/3
+colnames(starmap_res$prop_grid)[1] = "eL2/3"
+
+ggplot() + 
+  geom_scatterpie(aes(x=x, y=y), data=starmap_res$prop_grid, cols=colnames(starmap_res$prop_grid)[1:5]) +
+  scale_fill_manual(values=my.distinct.colors20) +
+  theme_classic() +
+  theme(legend.title=element_blank(), legend.text=element_text(size=12))
+```
+
+
+# Prepare Adjacency Matrix
+
+We define the neighborhood of a square pseudo-spot contains the adjacent **left**, **right**, **top** and **bottom** pseudo-spot, that is, one pseudo-spot has at most 4 neighbors.
+
+The physical location (in pixels) of pseudo-spots are saved in the column `x` and `y` in dataframe `starmap_res$prop_grid`, we extract them and store into a dataframe named `local_df`
+
+The generated Adjacency Matrix `A` only contains **1** and **0**, where 1 represents corresponding two pseudo-spots are adjacent spots according to the definition of neighborhood, while value 0 for non-adjacent pseudo-spots. Note **all diagonal entries are 0s**.
+
+```{r}
+# generate spot location dataframe
+local_df = starmap_res$prop_grid[, c('x', 'y')]
+row.names(local_df) = paste0('x', local_df$x, 'y', local_df$y)
+colnames(local_df) = c('imagecol', 'imagerow')
+
+
+getNeighbour = function(array_row, array_col) {
+  # based on the (row, col) of one spot, return the (row, col) of all 6 neighbours
+  return(list(c(array_row-500, array_col),
+              c(array_row+500, array_col),
+              c(array_row+0, array_col-500),
+              c(array_row+0, array_col+500)))
+}
+
+
+# adjacency matrix
+A = matrix(0, nrow = nrow(local_df), ncol = nrow(local_df))
+row.names(A) = rownames(local_df)
+colnames(A) = rownames(local_df)
+
+for (i in 1:nrow(local_df)) {
+  barcode = rownames(local_df)[i]
+  array_row = local_df[i, 'imagerow']
+  array_col = local_df[i, 'imagecol']
+  
+  # get neighbors
+  neighbours = getNeighbour(array_row, array_col)
+  
+  # fill the adjacency matrix
+  for (this.vec in neighbours) {
+    tmp.p = rownames(local_df[local_df$imagerow==this.vec[1] & local_df$imagecol==this.vec[2], ])
+    
+    if (length(tmp.p) >= 1) {
+      # target spots have neighbors in selected spots
+      for (neigh.barcode in tmp.p) {
+        A[barcode, neigh.barcode] = 1
+      }
+    }
+  }
+}
+```
+
+
+Plot Adjacency Matrix. Each node is a pseudo-spot, pseudo-spots within neighborhood are connected with edges.
+
+```{r, fig.width=14, fig.height=14}
+g = graph_from_adjacency_matrix(A, 'undirected', add.colnames = NA, add.rownames = NA)
+# manually set nodes x and y coordinates
+vertex_attr(g, name = 'x') = local_df$imagecol
+vertex_attr(g, name = 'y') = local_df$imagerow
+plot(g, vertex.size=5, edge.width=4, margin=-0.05)
+```
+
+
+# Save generated simulated spatial dataset
+
+## Save nUMI counts of all genes of spatial pseudo-spots
+
+nUMI count of all genes are stored in `starmap_res$spatial_exp`, and rows as genes, columns as pseudo-spots. We transpose this matrix into **rows as pseudo-spots and columns as genes**, then save into file [`sim_subsetCT_spatial_spot_nUMI.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data_subsetCT/sim_subsetCT_spatial_spot_nUMI.csv)
+
+```{r}
+to_save = t(starmap_res$spatial_exp)
+to_save[1:5, 1:5]
+write.csv(to_save, 'sim_subsetCT_spatial_spot_nUMI.csv')
+print(sprintf('save %d gene nUMIs of %d simulated spatial pseudo-spots into file %s', ncol(to_save), nrow(to_save), 'sim_subsetCT_spatial_spot_nUMI.csv'))
+```
+
+
+## Save Physical Locations of spatial pseudo-spots
+
+physical locations of all pseudo-spots are stored in `local_df`, and saved into file [`sim_subsetCT_spatial_spot_loc.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data_subsetCT/sim_subsetCT_spatial_spot_loc.csv)
+
+```{r}
+local_df$x = floor(local_df$imagecol/500) + 1
+local_df$y = floor(local_df$imagerow/500) + 1
+local_df[1:5, ]
+write.csv(local_df, 'sim_subsetCT_spatial_spot_loc.csv')
+print(sprintf('save Physical Locations of simulated spatial pseudo-spots into file %s', 'sim_subsetCT_spatial_spot_loc.csv'))
+```
+
+
+## Save Adjacency Matrix of spatial pseudo-spots
+
+Adjacency Matrix are stored in `A`, and saved into file [`sim_subsetCT_spatial_spot_adjacency_matrix.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data_subsetCT/sim_subsetCT_spatial_spot_adjacency_matrix.csv)
+
+```{r}
+A[1:5, 1:5]
+write.csv(A, 'sim_subsetCT_spatial_spot_adjacency_matrix.csv')
+print(sprintf('save Adjacency Matrix of simulated spatial pseudo-spots into file %s', 'sim_subsetCT_spatial_spot_adjacency_matrix.csv'))
+```
+
+
+## Save True cell type proportions of spatial pseudo-spots
+
+True cell type proportions of simulated spatial pseudo-spots are stored in `starmap_res$prop_grid`, and saved into file [`sim_subsetCT_spatial_spot_true_prop.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data_subsetCT/sim_subsetCT_spatial_spot_true_prop.csv)
+
+```{r}
+to_save = starmap_res$prop_grid
+row.names(to_save) = paste0('x', to_save$x, 'y', to_save$y)
+to_save = to_save[, !(colnames(to_save) %in% c('x', 'y'))]
+to_save[1:5,]
+write.csv(to_save, 'sim_subsetCT_spatial_spot_true_prop.csv')
+print(sprintf('save True cell type proportions of simulated spatial pseudo-spots into file %s', 'sim_subsetCT_spatial_spot_true_prop.csv'))
+```
+
+
+## Save number of cells per spot
+
+Number of cells per synthesized spot are stored in `starmap_res$ncell_grid`, and saved into file [`sim_subsetCT_spatial_spot_ncell.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Generate_simulation_data_subsetCT/sim_subsetCT_spatial_spot_ncell.csv).
+
+```{r}
+to_save = starmap_res$ncell_grid
+row.names(to_save) = paste0('x', to_save$x, 'y', to_save$y)
+to_save = to_save[, !(colnames(to_save) %in% c('x', 'y')), drop=F]
+colnames(to_save) = 'nCell'
+to_save[1:5, , drop=F]
+write.csv(to_save, 'sim_subsetCT_spatial_spot_ncell.csv')
+print(sprintf('save number of cells in simulated spatial pseudo-spots into file %s', 'sim_subsetCT_spatial_spot_ncell.csv'))
+```
+
+
+## Save cell type annotation of STARmap cells
+
+Cell type annotation of *selected* cells in STARmap dataset are stored in `meta_data$cluster_name`, and saved into file [`STARmap_subsetCT_cell_celltype.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data_subsetCT/Scenario_1/ref_spatial/STARmap_subsetCT_cell_celltype.csv)
+
+```{r}
+to_save = meta_data['cluster_name']
+row.names(to_save) = meta_data$index
+colnames(to_save) = 'celltype'
+to_save$celltype = as.character(to_save$celltype)
+to_save[1:5, , drop=F]
+write.csv(to_save, 'STARmap_subsetCT_cell_celltype.csv')
+print(sprintf('save cell type annotation of STARmap cells into file %s', 'STARmap_subsetCT_cell_celltype.csv'))
+```
+
+

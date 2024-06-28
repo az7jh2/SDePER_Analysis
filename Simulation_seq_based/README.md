@@ -15,14 +15,14 @@ Notebooks of running SDePER and corresponding deconvoluted cell type proportions
 
 Single cells with the **matched 12 cell types** are included as reference.
 
-#### 2.1.1 Using GSE102827 scRNA-seq data as reference for deconvolution (internal reference)
+#### 2.1.1 Using GSE102827 scRNA-seq data as reference for deconvolution (*internal* reference)
 
 Single cells from the [GSE102827](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE102827) dataset are used as reference for deconvolution, therefore it's **free of platform effect**.
 
 * **NO** platform effect removal by CVAE: see [S1_ref_spatial_SDePER_NO_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_NO_CVAE.ipynb)
 * **WITH** platform effect removal by CVAE: see [S1_ref_spatial_SDePER_WITH_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_WITH_CVAE.ipynb)
 
-#### 2.1.2 Using GSE115746 scRNA-seq data as reference for deconvolution (external reference)
+#### 2.1.2 Using GSE115746 scRNA-seq data as reference for deconvolution (*external* reference)
 
 Single cells from the [GSE115746](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE115746) scRNA-seq dataset are used as reference for deconvolution, therefore **platform effect exists**.
 
