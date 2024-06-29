@@ -42,6 +42,8 @@ We performed ablation test on 4 components: **pseudo-spots in training CVAE**, *
 
 We performed ablation test on 3 datasets: [**STARmap-based** simulated dataset](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/c60dcb036816bd61b5a8b3752d473a5b591b52b6/Simulation/Generate_simulation_data/generate_simulated_spatial_data.nb.html), [**sequencing-based** simulated dataset](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/03f921545a4e5d5a8fab813658eb2d9953f84cc7/Simulation_seq_based/Generate_simulation_data/generate_simulated_spatial_data.nb.html) and [**high density sequencing-based** simulated dataset](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/d22e0c9b4574530a8ecbdf620638f2527ec20c5e/Simulation_seq_based/Generate_high_density_simulation_data/generate_simulated_spatial_data.nb.html).
 
+To evaluate the impact of adaptive Lasso on datasets with fewer cell types, we also performed ablation test on **sparsity penalty** on [STARmap-based simulated dataset with a subset of 5 cell types](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/ab7b78abe53a4c625b71ce9eb5ab96bf2b829c5c/Simulation/Generate_simulation_data_subsetCT/generate_simulated_spatial_data_subsetCT.nb.html).
+
 1.  **Inputs**:
 
     * [`ablation_all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Ablation/ablation_all_results.rds): cell type deconvolution results of all ablation test on SDePER, as well as the ground truth in Ablation analysis.
@@ -113,7 +115,7 @@ for (dataset in names(all_res)) {
 
 ## Calculate spot-wise performance of all methods
 
-4 performance measurements:
+5 performance measurements:
 
 * root mean square error (**RMSE**): quantifies the overall estimation accuracy
 * Jensen-Shannon Divergence (**JSD**): assesses similarity between the estimated cell type distribution and ground-truth per spot
@@ -218,6 +220,9 @@ for (dataset in names(all_perform)) {
   } else if (dataset == "Simulation_seq_based_6x") {
     this_dataset = 'seq-based'
     this_density = '6x'
+  } else if (dataset == 'Simulation_subsetCT') {
+    this_dataset = 'STARmap-based'
+    this_density = 'subsetCT'
   } else {
     stop('unknown dataset')
   }
@@ -286,7 +291,7 @@ if (save_file) {
 }
 
 plot_df = perform_raw_df %>%
-  filter(Dataset == 'STARmap-based' & Scenario=='Scenario 1')
+  filter(Dataset=='STARmap-based' & Density=='1x' & Scenario=='Scenario 1')
 
 g_list = list()
 
@@ -339,7 +344,7 @@ if (save_file) {
 }
 
 plot_df = perform_raw_df %>%
-  filter(Dataset == 'seq-based' & Scenario=='Scenario 1')
+  filter(Dataset=='seq-based' & Scenario=='Scenario 1')
 
 g_list = list()
 
@@ -380,3 +385,60 @@ ggplot(plot_df, aes(x=Density, y=FNR, fill=Method)) +
         legend.title = element_blank()) +
         facet_grid(~Reference)
 ```
+
+
+
+# Ablation test for STARmap-based simulation data with subset of cell types
+
+## Figure. Boxplot of performance of all methods in Ablation test on Simulated Data Scenario 1
+
+```{r, fig.width=6, fig.height=6}
+if (save_file) {
+  file_name = file.path(home.dir, 'Fig_ablation_simulation_subsetCT_S1_performance.pdf')
+  cairo_pdf(file_name, height=6, width=6, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+plot_df = perform_raw_df %>%
+  filter(Dataset=='STARmap-based' & Density=='subsetCT' & Scenario=='Scenario 1')
+
+g_list = list()
+
+for (perform_ind in c('RMSE', 'Pearson', 'JSD', 'FDR')) {
+  g_list[[perform_ind]] = ggplot(plot_df, aes(x=Method, y=.data[[perform_ind]], fill=Method)) +
+                            geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+                            scale_fill_manual(values=method_color, labels=c('SDePER'='SDePER (baseline)','GLRM'='GLRM (NO CVAE)', 'NO_PlatEffRmv'='NO PlatEffRmv', 'NO_pseudo_spots'='NO pseudo spots', 'NO_LASSO'='NO LASSO', 'NO_Laplacian'='NO Laplacian', 'NO_LASSO_Laplacian'='NO LASSO Laplacian', 'NO_CVAE_LASSO_Laplacian'='NO CVAE LASSO Laplacian', 'NO_PlatEffRmv_LASSO_Laplacian'='NO PlatEffRmv LASSO Laplacian')) +
+                            theme_classic() +
+                            theme(strip.text = element_text(size=10),
+                                  axis.text = element_text(color="black"),
+                                  axis.ticks.x = element_blank(),
+                                  axis.text.x = element_blank(),
+                                  axis.title.x = element_blank(),
+                                  legend.title = element_blank()) +
+                            facet_grid(~Reference)
+                            
+}
+
+g_list[['Pearson']] = g_list[['Pearson']] + geom_hline(yintercept=0, color="red", linetype="dashed")
+
+ggpubr::ggarrange(plotlist=g_list, ncol=2, nrow=2, common.legend=TRUE, legend="right")
+```
+
+
+## Addtional boxplot for FNR
+
+```{r, fig.width=4, fig.height=3}
+ggplot(plot_df, aes(x=Method, y=FNR, fill=Method)) +
+  geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+  scale_fill_manual(values=method_color, labels=c('SDePER'='SDePER (baseline)','GLRM'='GLRM (NO CVAE)', 'NO_PlatEffRmv'='NO PlatEffRmv', 'NO_pseudo_spots'='NO pseudo spots', 'NO_LASSO'='NO LASSO', 'NO_Laplacian'='NO Laplacian', 'NO_LASSO_Laplacian'='NO LASSO Laplacian', 'NO_CVAE_LASSO_Laplacian'='NO CVAE LASSO Laplacian', 'NO_PlatEffRmv_LASSO_Laplacian'='NO PlatEffRmv LASSO Laplacian')) +
+  theme_classic() +
+  theme(strip.text = element_text(size=10),
+        axis.text = element_text(color="black"),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        legend.title = element_blank()) +
+        facet_grid(~Reference)
+```
+
+
