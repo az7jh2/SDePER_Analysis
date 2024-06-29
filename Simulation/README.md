@@ -23,6 +23,10 @@ This folder holds Notebooks of generating simulated dataset, as well as the anal
 
    3.3 [Scenario 3](#33-Scenario-3)
 
+4. [Additional simulation analysis with downsampled reference](#4-additional-simulation-analysis-with-downsampled-reference)
+
+5. [Additional simulation analysis with subset of cell types](#5-additional-simulation-analysis-with-subset-of-cell-types)
+
 ## 1. Simulated spatial transcriptomics dataset
 
 We create a **simulated** spatial transcriptomics dataset using **coarse-graining** procedure.
@@ -139,14 +143,14 @@ We run SDePER in **3 different scenarios**, and the simulated spatial transcript
 
 Single cells with the **matched 12 cell types** are included as reference.
 
-#### 3.1.1 Using spatial data as reference for deconvolution (internal reference)
+#### 3.1.1 Using spatial data as reference for deconvolution (*internal* reference)
 
 Single cells from the STARmap dataset are used as reference for deconvolution, therefore it's **free of platform effect**.
 
 * **NO** platform effect removal by CVAE: see [S1_ref_spatial_SDePER_NO_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_NO_CVAE.ipynb)
 * **WITH** platform effect removal by CVAE: see [S1_ref_spatial_SDePER_WITH_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/S1_ref_spatial_SDePER_WITH_CVAE.ipynb)
 
-#### 3.1.2 Using scRNA-seq data as reference for deconvolution (external reference)
+#### 3.1.2 Using scRNA-seq data as reference for deconvolution (*external* reference)
 
 Single cells from the scRNA-seq dataset are used as reference for deconvolution, therefore **platform effect exists**.
 
@@ -160,3 +164,23 @@ This scenario evaluates the robustness of cell type deconvolution methods where 
 ### 3.3 Scenario 3
 
 This scenario evaluates the robustness of cell type deconvolution methods where **one actually NOT presented cell type in spatial data is adding into reference data**. Here we add an irrelevant cell type **high intronic** (column `cell_subclass=High Intronic` in meta data; *N* = 182) besides the matched 12 cell types. In this scenario we only run SDePER with scRNA-seq data as reference (see  [S3_ref_scRNA_SDePER_WITH_CVAE.ipynb](Run_SDePER_on_simulation_data/Scenario_3/S3_ref_scRNA_SDePER_WITH_CVAE.ipynb)) using cell type annotation with high intronic for scRNA-seq cells ([ref_scRNA_cell_celltype_addHigh-Intronic.csv](Run_SDePER_on_simulation_data/Scenario_3/ref_scRNA_cell_celltype_addHigh-Intronic.csv)).
+
+## 4. Additional simulation analysis with downsampled reference
+
+We generated internal and external scRNA-seq reference data by downsampling the number of cells of cell type **Astro** and **Oligo**. We randomly downsampled the number of cells to 5, 10, 20, 50, 100 and 250.
+
+To access the methods used for generating these reference datasets, please refer [generate_downsampled_ref_data.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/5dc5cf8a6d97237304017c260f96ed0d3e41cb51/Simulation/Generate_downsampled_ref_data/generate_downsampled_ref_data.nb.html) in folder [Generate_downsampled_ref_data](Generate_downsampled_ref_data).
+
+Notebooks of running SDePER and corresponding deconvoluted cell type proportions are available in folder [Run_SDePER_on_simulation_data_with_downsampled_ref](Run_SDePER_on_simulation_data_with_downsampled_ref).
+
+Results are shown in [generate_simulation_Oligo_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/3d98724031f1b09489089444b8ec946d1748a434/Figures/Simulation/generate_simulation_Oligo_figures.nb.html).
+
+## 5. Additional simulation analysis with subset of cell types
+
+To evaluate the impact of adaptive Lasso on datasets with fewer cell types, we simulated another dataset using a subset of 5 cell types (*eL2/3*, *eL4*, *eL5*, *eL6*, and *Oligo*) out of a total of 12 cell types.
+
+To access the methods used for generating this simulated datasets, please refer [generate_simulated_spatial_data_subsetCT.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/ab7b78abe53a4c625b71ce9eb5ab96bf2b829c5c/Simulation/Generate_simulation_data_subsetCT/generate_simulated_spatial_data_subsetCT.nb.html) in folder [Generate_simulation_data_subsetCT](Generate_simulation_data_subsetCT).
+
+Notebooks of running SDePER and corresponding deconvoluted cell type proportions are available in folder [Run_SDePER_on_simulation_data_subsetCT](Run_SDePER_on_simulation_data_subsetCT).
+
+Ablation test results for adaptive Lasso on this dataset are shown in [generate_ablation_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/ab7b78abe53a4c625b71ce9eb5ab96bf2b829c5c/Ablation/generate_ablation_figures.nb.html).
