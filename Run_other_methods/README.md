@@ -1,0 +1,12 @@
+# Run other methods
+We compare SDePER with other seven spatial cell type deconvolution methods.
+
+| Method                                                       | Version | Code                                         | Reference                                                    | Comments                                                     |
+| ------------------------------------------------------------ | ------- | -------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| [RCTD](https://github.com/dmcable/spacexr)                   | 2.01    | [run_RCTD.R](run_RCTD.R)                     | [*Nat Biotechnol*, 2022](https://doi.org/10.1038/s41587-021-00830-w) |                                                              |
+| SpatialDWLS                                                  | 1.1.2   | [run_SpatialDWLS.R](run_SpatialDWLS.R)       | [*Genome Biol*, 2021](https://doi.org/10.1186/s13059-021-02362-7) | implemented in [Giotto](https://rubd.github.io/Giotto_site/) |
+| [SONAR](https://github.com/lzygenomics/SONAR)                | 1.0.0   | [run_SONAR.R](run_SONAR.R)                   | [*Nat Commun*, 2023](https://doi.org/10.1038/s41467-023-40458-9) |                                                              |
+| [SPOTlight](https://github.com/MarcElosua/SPOTlight)         | 1.8.0   | [run_SPOTlight.R](run_SPOTlight.R)           | [*Nucleic Acids Res*, 2021](https://doi.org/10.1093/nar/gkab043) |                                                              |
+| [cell2location](https://github.com/BayraktarLab/cell2location) | 0.1.3   | [run_cell2location.py](run_cell2location.py) | [*Nat Biotechnol*, 2022](https://doi.org/10.1038/s41587-021-01139-4) |                                                              |
+| [DestVI](https://docs.scvi-tools.org/en/stable/user_guide/models/destvi.html) | 1.1.3   | [run_DestVI.R](run_DestVI.R)                 | [*Nat Biotechnol*, 2022](https://doi.org/10.1038/s41587-022-01272-8) | implemented in [scVI](https://docs.scvi-tools.org/en/stable/index.html) |
+| [CARD](https://yma-lab.github.io/CARD/)                      | 1.0     | [run_CARD.R](run_CARD.R)                     | [*Nat Biotechnol*, 2022](https://doi.org/10.1038/s41587-022-01273-7) |                                                              |
