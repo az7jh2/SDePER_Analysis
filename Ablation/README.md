@@ -10,7 +10,7 @@ We performed ablation test on 3 datasets: [**STARmap-based** simulated dataset](
 
 To evaluate the impact of adaptive Lasso on datasets with fewer cell types, we also performed ablation test on **sparsity penalty** on [STARmap-based simulated dataset with **a subset of 5 cell types**](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/ab7b78abe53a4c625b71ce9eb5ab96bf2b829c5c/Simulation/Generate_simulation_data_subsetCT/generate_simulated_spatial_data_subsetCT.nb.html).
 
-Ablation Test results are shown in [generate_ablation_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/ab7b78abe53a4c625b71ce9eb5ab96bf2b829c5c/Ablation/generate_ablation_figures.nb.html).
+Ablation Test results are shown in [generate_ablation_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/969f323b7518a1f7d26c01ab15586c274d11cb07/Ablation/generate_ablation_figures.nb.html).
 
 NOTE: In each ablation test run, we will **conduct a 5-fold cross-validation to determine the optimal values for the Adaptive LASSO regularization and Laplacian regularization hyperparameters anew**. This approach is necessitated by the potential shift in the optimal parameter values resulting from the modification of a single component in the ablation test. Our objective is to guarantee that the ablation test accurately represents the impact of the modification on performance, under the most favorable conditions.
 

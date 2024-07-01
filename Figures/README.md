@@ -5,7 +5,7 @@ This folder contains R Notebooks used for creating figures in the manuscript.
 
 ### STARmap-based simulation
 
-[generate_simulation_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/766828c46ac678831a5edf27cacd0b6e90ba1c3f/Figures/Simulation/generate_simulation_figures.nb.html):
+[generate_simulation_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/969f323b7518a1f7d26c01ab15586c274d11cb07/Figures/Simulation/generate_simulation_figures.nb.html):
 
 - **Figure 2A**. Visualization of STARmap dataset
 - **Figure 2B**. Performance of all methods in Scenario 1
@@ -36,7 +36,7 @@ This folder contains R Notebooks used for creating figures in the manuscript.
 
 ### Ablation tests
 
-[generate_ablation_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/ab7b78abe53a4c625b71ce9eb5ab96bf2b829c5c/Ablation/generate_ablation_figures.nb.html):
+[generate_ablation_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/969f323b7518a1f7d26c01ab15586c274d11cb07/Ablation/generate_ablation_figures.nb.html):
 
 * **Figure S7**. Performance in Ablation test in STARmap-based simulation
 * **Figure S8**. Performance in Ablation test in sequencing-based simulation study
@@ -46,7 +46,7 @@ This folder contains R Notebooks used for creating figures in the manuscript.
 
 ### Mouse Olfactory Bulb (**MOB**)
 
-[generate_MOB_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/766828c46ac678831a5edf27cacd0b6e90ba1c3f/Figures/MOB/generate_MOB_figures.nb.html):
+[generate_MOB_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/969f323b7518a1f7d26c01ab15586c274d11cb07/Figures/MOB/generate_MOB_figures.nb.html):
 
 - **Figure 3A**. Visualization of MOB dataset
 - **Figure 3B**. Visualization of inferred dominant cell type in each spot
@@ -61,7 +61,7 @@ This folder contains R Notebooks used for creating figures in the manuscript.
 
 ### Melanoma
 
-[generate_Melanoma_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/766828c46ac678831a5edf27cacd0b6e90ba1c3f/Figures/Melanoma/generate_Melanoma_figures.nb.html):
+[generate_Melanoma_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/969f323b7518a1f7d26c01ab15586c274d11cb07/Figures/Melanoma/generate_Melanoma_figures.nb.html):
 
 - **Figure 4A**. Visualization of Melanoma dataset
 - **Figure 4B**. Visualization of inferred dominant cell type in each spot
@@ -76,7 +76,7 @@ This folder contains R Notebooks used for creating figures in the manuscript.
 
 ### Breast Cancer
 
-[generate_Breast_Cancer_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/766828c46ac678831a5edf27cacd0b6e90ba1c3f/Figures/Breast_Cancer/generate_Breast_Cancer_figures.nb.html):
+[generate_Breast_Cancer_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/969f323b7518a1f7d26c01ab15586c274d11cb07/Figures/Breast_Cancer/generate_Breast_Cancer_figures.nb.html):
 
 - **Figure 5A**. Visualization of Breast Cancer dataset
 - **Figure 5B**. Visualization of inferred dominant cell type in each spot
@@ -91,7 +91,7 @@ This folder contains R Notebooks used for creating figures in the manuscript.
 
 ### Idiopathic Pulmonary Fibrosis (IPF) Lung
 
-[generate_IPF_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/766828c46ac678831a5edf27cacd0b6e90ba1c3f/Figures/IPF/generate_IPF_figures.nb.html):
+[generate_IPF_figures.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/969f323b7518a1f7d26c01ab15586c274d11cb07/Figures/IPF/generate_IPF_figures.nb.html):
 
 - **Figure 6B**. Heatmap of 4 cell type-specific marker genes
 - **Figure 6C**. Visualization of inferred cell type proportions in each spot of 4 methods
