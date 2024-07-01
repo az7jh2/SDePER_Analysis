@@ -30,7 +30,9 @@ home.dir = '/home/hill103/Documents/Spatial/Figures/Breast_Cancer'
 save_file = FALSE
 
 my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
-method_color = c("SDePER"='#e6194b', "SpatialDWLS"='#3cb44b', "cell2location"='#ffe119', "SPOTlight"='#4363d8', "CARD"='#f58231', "DestVI"='#911eb4', "RCTD"='#46f0f0', "GLRM"='#f032e6')
+method_color = c("SDePER"='#E6194B', "GLRM"='#F032E6', "RCTD"='#46F0F0', "SpatialDWLS"='#3CB44B', "cell2location"='#FFE119',"SONAR"='#9A6324', "SPOTlight"='#4363D8', "CARD"='#F58231', "DestVI"='#911EB4')
+all_methods = names(method_color)
+all_methods = all_methods[all_methods != 'GLRM']
 anno_color = c("Invasive cancer"='#9a6324', "Cancer in situ"='#fabebe', "Breast gland"='#bcf60c', "Immune infiltrate"='#e6beff', "Adipose tissue"='#f032e6', "Connective tissue"='#008080', "Undetermined"='#fffac8')
 bc_color = c("B-cells"='#e6194b', "CAFs"='#3cb44b', "Cancer Epithelial"='#ffe119', "Endothelial"='#4363d8', "Myeloid"='#f58231', "Normal Epithelial"='#911eb4', "PVL"='#46f0f0', "Plasmablasts"='#f032e6', "T-cells"='#bcf60c')
 
@@ -65,9 +67,9 @@ This R Notebook generates figures for **Breast Cancer** dataset in Real Data Ana
   * Figure 5E. Heatmap of original and imputed expression of 4 region-specific marker genes
   * Figure 5F. Heatmap of average imputed expression of 4 region-specific marker genes at 80 μm level
   * Figure 5G. Barplot of ratio of average imputed expression of 4 region-specific marker genes at 80 μm level
-  * Figure S9. Heatmap of 9 cell type-specific marker genes
-  * Figure S10. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
-  * Figure S11. Heatmap of imputed expression of 4 region-specific marker genes by SDePER and CARD
+  * Figure S18. Heatmap of 9 cell type-specific marker genes
+  * Figure S20. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
+  * Figure S21. Heatmap of imputed expression of 4 region-specific marker genes by SDePER and CARD
 
 
 # Version
@@ -109,7 +111,6 @@ print(sprintf('load data from %s', file_name))
 # check the order of spatial spots and cell types are consistent
 all_spots = row.names(all_res[['Annotation']])
 all_celltypes = colnames(all_res[['SDePER']])
-all_methods = names(all_res)[names(all_res)!='Annotation']
 ```
 
 
@@ -328,13 +329,13 @@ ggplot(plot_df, aes(x=x, y=y, color=anno)) +
 ```
 
 
-## Figure S9. Heatmap of 9 cell type-specific marker genes
+## Figure S18. Heatmap of 9 cell type-specific marker genes
 
 *ERBB2* for cancer epithelial, *COL1A2* for CAF, *IGKC* for plasma, *CD74* for myeloid, *ACTA2* for PVL, *VWF* for endothelial, *MS4A1* for B cell, *CD3D* for T cell, *EPCAM* for normal epithelial.
 
 ```{r, fig.width=9, fig.height=4}
 if (save_file) {
-  file_name = file.path(home.dir, 'FigS9_Breast_Cancer_9celltype_marker_heatmap.pdf')
+  file_name = file.path(home.dir, 'FigS18_Breast_Cancer_9celltype_marker_heatmap.pdf')
   cairo_pdf(file_name, height=4, width=9, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
@@ -366,16 +367,15 @@ for (method_name in all_methods) {
   g_list[[method_name]] = CARD::CARD.visualize.pie(
     proportion = all_res_dominat[[method_name]],
     spatial_location = all_res[['Annotation']][row.names(all_res_dominat[[method_name]]), c('x', 'y')],
-    colors = bc_color, radius=0.55) + theme(legend.position="none", title=element_text(face=2, size=12)) + ggtitle(method_name) + scale_y_reverse()
+    colors = bc_color, radius=0.55) +
+      theme(legend.position="bottom", title=element_text(face=2, size=12)) +
+      scale_fill_manual(values=bc_color, breaks=names(bc_color), labels=celltype_label) +
+      guides(fill=guide_legend(title="Cell-type")) +
+      ggtitle(method_name) +
+      scale_y_reverse()
 }
 
-# get the legend
-g_list[[1]] = g_list[[1]] + theme(legend.position="right") + scale_fill_manual(values=bc_color, breaks=names(bc_color), labels=celltype_label) + guides(fill=guide_legend(title="Cell-type"))
-g_legend = cowplot::get_legend(g_list[[1]])
-g_list[[1]] = g_list[[1]] + theme(legend.position="none")
-g_list[[length(g_list)+1]] = g_legend
-
-ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv')
+ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv', common.legend = T, legend = 'bottom')
 ```
 
 
@@ -394,16 +394,15 @@ for (method_name in all_methods) {
   g_list[[method_name]] = CARD::CARD.visualize.pie(
     proportion = all_res[[method_name]],
     spatial_location = all_res[['Annotation']][row.names(all_res[[method_name]]), c('x', 'y')],
-    colors = bc_color, radius=0.55) + theme(legend.position="none", title=element_text(face=2, size=12)) + ggtitle(method_name) + scale_y_reverse()
+    colors = bc_color, radius=0.55) +
+      theme(legend.position="bottom", title=element_text(face=2, size=12)) +
+      scale_fill_manual(values=bc_color, breaks=names(bc_color), labels=celltype_label) +
+      guides(fill=guide_legend(title="Cell-type")) +
+      ggtitle(method_name) +
+      scale_y_reverse()
 }
 
-# get the legend
-g_list[[1]] = g_list[[1]] + theme(legend.position="right") + scale_fill_manual(values=bc_color, breaks=names(bc_color), labels=celltype_label) + guides(fill=guide_legend(title="Cell-type"))
-g_legend = cowplot::get_legend(g_list[[1]])
-g_list[[1]] = g_list[[1]] + theme(legend.position="none")
-g_list[[length(g_list)+1]] = g_legend
-
-ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv')
+ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv', common.legend = T, legend = 'bottom')
 ```
 
 
@@ -432,7 +431,7 @@ ggplot(plot_df, aes(x=Method, y=value)) +
 ```
 
 
-## Figure S10. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
+## Figure S20. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
 
 ```{r, fig.width=16.5, fig.height=14}
 if (save_file) {
@@ -531,7 +530,7 @@ ggpubr::ggarrange(plotlist = g_list, ncol=1, nrow=4, common.legend = T, legend =
 ```
 
 
-## Figure S11. Heatmap of imputed expression of 4 region-specific marker genes by SDePER and CARD
+## Figure S21. Heatmap of imputed expression of 4 region-specific marker genes by SDePER and CARD
 
 *ERBB2* for cancer region, *SCGB2A2* for breast glands, *MS4A1* for immune infiltrate, *FABP4* for adipose tissue.
 
@@ -556,7 +555,7 @@ for (this_diameter in c('160', '114', '80')) {
       colors = NULL,
       NumCols = 4) +
       geom_point(aes(color=value), size=3, shape=15, position=position_dodge2(width=0.05)) +
-      theme(legend.position="right", plot.subtitle=element_text(size=14)) + labs(subtitle = sprintf('%s μm', this_diameter)) + scale_y_reverse()
+      theme(legend.position="right", plot.subtitle=element_text(size=14)) + guides(color=guide_colourbar(title="Exp")) + labs(subtitle = sprintf('%s μm', this_diameter)) + scale_y_reverse()
   }
 }
 

@@ -30,7 +30,8 @@ home.dir = '/home/hill103/Documents/Spatial/Figures/Simulation'
 save_file = FALSE
 
 my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
-method_color = c("SDePER"='#e6194b', "SpatialDWLS"='#3cb44b', "cell2location"='#ffe119', "SPOTlight"='#4363d8', "CARD"='#f58231', "DestVI"='#911eb4', "RCTD"='#46f0f0', "GLRM"='#f032e6')
+method_color = c("SDePER"='#E6194B', "GLRM"='#F032E6', "RCTD"='#46F0F0', "SpatialDWLS"='#3CB44B', "cell2location"='#FFE119',"SONAR"='#9A6324', "SPOTlight"='#4363D8', "CARD"='#F58231', "DestVI"='#911EB4')
+method_order = names(method_color)
 ```
 
 
@@ -51,8 +52,8 @@ This R Notebook generates figures in **Simulation Analysis** section in manuscri
   * Figure 2B. Boxplot of performance of all methods in Scenario 1
   * Figure 2C. Heatmap of proportion of eL2/3 in the simulated spatial pseudo-spots
   * Figure 2D. Boxplot of performance of all methods with External reference in Scenario 1~3
-  * Figure S1. Heatmap of proportions of 4 cell types in the simulated spatial pseudo-spots
-  * Figure S2. Correlations between proportions of all cell types in Scenario 1
+  * Figure S1. Correlations between proportions of all cell types in Scenario 1
+  * Figure S2. Heatmap of proportions of 4 cell types in the simulated spatial pseudo-spots
 
 
 # Version
@@ -144,38 +145,25 @@ for (scenario in c("S1_int_ref", "S1_ext_ref", "S2_ext_ref", "S3_ext_ref")) {
 }
 ```
 
-For the methods without cell type selection procedure, including **cell2location**, **DestVI** and **CARD**, we put a hard-thresholding with cutoff **0.1** on the estimated cell type compositions to force the extremely small proportions to be zeros.
-
-NOTE: we only use the hard-thresholded proportions for calculation of RMSE, JSD, Pearson correlation and FDR. For heatmap, we use the original proportions without hard-thresholding.
-
-NOTE: for spots with all proportions < 0.1, we set the proportion of the cell type with largest proportion as 1, and set proportion of other cell types as 0.
+Check whether estimated cell type proportions of spot are ALL 0s.
 
 ```{r}
-all_res_thresh = all_res
-
 for (scenario in c("S1_int_ref", "S1_ext_ref", "S2_ext_ref", "S3_ext_ref")) {
-  for (method_name in c("cell2location", "DestVI", "CARD")) {
+  for (method_name in names(all_res[[scenario]])) {
     tmp_df = all_res[[scenario]][[method_name]]
-    tmp_count = 0
     for (i in 1:nrow(tmp_df)) {
-      if (any(tmp_df[i, ]<0.1 & tmp_df[i, ]>0)) {
-        tmp_count = tmp_count + 1
-        this_row_max_col = which.max(tmp_df[i, ])
-        # replace them with 0 then re-normalize to sum to 1
-        tmp_df[i, tmp_df[i,]<0.1] = 0
-        if (sum(tmp_df[i, ]) == 0) {
-          print(sprintf('WARNING: %s: %s result: row %d (%s) has all values within range (0, 0.1)', scenario, method_name, i, row.names(tmp_df)[i]))
-          tmp_df[i, this_row_max_col] = 1
-        } else {
-          tmp_df[i, ] = tmp_df[i, ] / sum(tmp_df[i, ])
-        }
-        all_res_thresh[[scenario]][[method_name]][i, ] = tmp_df[i, ]
+      if (sum(tmp_df[i, ]) == 0) {
+        print(sprintf('%s: %s result: row %d (%s) has ALL 0s', scenario, method_name, i, row.names(tmp_df)[i]))
       }
     }
-    print(sprintf('%s: %s result: %d rows have value(s) within range (0, 0.1)', scenario, method_name, tmp_count))
   }
 }
 ```
+
+
+For the methods without cell type selection procedure, including **cell2location**, **DestVI**, **CARD** and **SONAR**, we put a hard-thresholding with cutoff **0.1** on the estimated cell type compositions to force the extremely small proportions to be zeros.
+
+**UPDATE**: hard-thresholding were NOT applied, original estimated cell type proportions were used for performance evaluation.
 
 
 
@@ -195,7 +183,6 @@ NOTE:
 * in Scenario 2 we removed one cell type VIP. We manually add VIP back to the results of all methods and set its proportion as 0. The evaluation are based on all 12 cell types.
 * in Scenario 3 we added one cell type High Intronic. We manually add High Intronic to ground truth and set its proportion as 0. The evaluation are based on 13 cell types.
 * in **SpatialDWLS** results there are fewer spots than ground truth. The evaluation are based on spots with both truth and prediction only.
-* for **cell2location**, **DestVI** and **CARD**, we used proportions with **hard-thresholding** for calculation in all Scenarios.
 
 ```{r}
 binaryPredEvaluation = function(truth, pred) {
@@ -248,6 +235,10 @@ calcPerformance = function(truth, pred) {
     perform_df[nrow(perform_df)+1, ] = c(RMSE, JSD, Pearson, FDR, FNR)
   }
   
+  # also record spot names
+  stopifnot(nrow(perform_df) == nrow(truth))
+  perform_df['Spot'] = row.names(truth)
+  
   return(perform_df)
 }
 
@@ -256,17 +247,17 @@ all_perform = list()
 
 for (scenario in c("S1_int_ref", "S1_ext_ref", "S2_ext_ref", "S3_ext_ref")) {
   if (scenario %in% c("S1_int_ref", "S1_ext_ref", "S2_ext_ref")) {
-    this_round_truth = all_res_thresh[['Truth']]
+    this_round_truth = all_res[['Truth']]
   } else {
     # add cell type High Intronic to Truth with 0 proportions
-    this_round_truth = all_res_thresh[['Truth']]
+    this_round_truth = all_res[['Truth']]
     this_round_truth['High Intronic'] = 0
     this_round_truth = this_round_truth[, all_celltypes_S3]
   }
   
   all_perform[[scenario]] = list()
   for (method_name in names(all_res[[scenario]])) {
-    this_pred = all_res_thresh[[scenario]][[method_name]]
+    this_pred = all_res[[scenario]][[method_name]]
     if (scenario == 'S2_ext_ref') {
       # add VIP back
       this_pred['VIP'] = 0
@@ -289,8 +280,8 @@ for (scenario in c("S1_int_ref", "S1_ext_ref", "S2_ext_ref", "S3_ext_ref")) {
 Including Table S1. Median RMSE, JSD, correlation and FDR of all methods in Scenario 1.
 
 ```{r}
-perform_raw_df = data.frame(matrix(ncol=8, nrow=0))
-colnames(perform_raw_df) = c('Scenario', 'Method', 'Reference', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
+perform_raw_df = data.frame(matrix(ncol=9, nrow=0))
+colnames(perform_raw_df) = c('Scenario', 'Method', 'Reference', 'Spot', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
 
 # calculate median performance across all spatial spots for all methods
 perform_median_df = data.frame(matrix(ncol=8, nrow=0))
@@ -329,10 +320,12 @@ for (scenario in c("S1_int_ref", "S1_ext_ref", "S2_ext_ref", "S3_ext_ref")) {
 }
 
 # set method column as factors
-perform_raw_df['Method'] = factor(perform_raw_df$Method, levels = c("SDePER", "GLRM", "SpatialDWLS", "cell2location", "SPOTlight", "CARD", "DestVI", "RCTD"))
+perform_raw_df['Method'] = factor(perform_raw_df$Method, levels = method_order)
 
-perform_median_df[, c('Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR')]
+perform_median_df[, c('Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')]
 ```
+
+
 
 # Draw figures
 
@@ -398,10 +391,10 @@ ggpubr::ggarrange(plotlist=g_list, ncol=2, nrow=2, common.legend=TRUE, legend="r
 
 ## Figure 2D. Boxplot of performance of all methods with External reference in Scenario 1~3
 
-```{r, fig.width=6, fig.height=6}
+```{r, fig.width=4, fig.height=6}
 if (save_file) {
   file_name = file.path(home.dir, 'Fig2D_S1-S3_ext_ref_performance.pdf')
-  cairo_pdf(file_name, height=6, width=6, onefile=T)
+  cairo_pdf(file_name, height=6, width=4, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
 
@@ -424,9 +417,9 @@ ggplot(plot_df, aes(x=Method, y=value, fill=Method)) +
   theme_classic() +
   theme(panel.border = element_rect(fill=NA, colour="black", inherit.blank=T, size=1),
         strip.text = element_text(size=12), strip.background = element_rect(size=0),
-        axis.ticks = element_blank(), axis.text = element_blank(), axis.title = element_blank(),
+        axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title = element_blank(),
         axis.line = element_blank(), # avoid thick axis line in left and bottom border
-        legend.position = "right", legend.title = element_blank()) +
+        legend.position = "bottom", legend.title = element_blank()) +
   geom_hline(aes(yintercept = yp), data=dat_hline, color="red", linetype="dashed")
 ```
 
@@ -435,10 +428,10 @@ ggplot(plot_df, aes(x=Method, y=value, fill=Method)) +
 
 For Scenario 1 with External reference
 
-```{r, fig.width=4, fig.height=6}
+```{r, fig.width=5.8, fig.height=5}
 if (save_file) {
   file_name = file.path(home.dir, 'Fig2C_eL23_prop_heatmap.pdf')
-  cairo_pdf(file_name, height=6, width=4, onefile=T)
+  cairo_pdf(file_name, height=5, width=5.8, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
 
@@ -452,7 +445,7 @@ onePropHeatmap = function(spot_loc, all_result, celltype, legend_pos='bottom', s
   plot_df = merge(spot_loc[, c('imagerow', 'imagecol')], tmp_df, by='row.names')
   
   # add results of all methods (rbind will automatically check columns first)
-  all_methods = c("SDePER", "SpatialDWLS", "cell2location", "SPOTlight", "CARD", "DestVI", "RCTD")
+  all_methods = method_order[method_order != 'GLRM']
   
   for (method in all_methods) {
     tmp_df = all_result[['S1_ext_ref']][[method]][, celltype, drop=F]
@@ -474,7 +467,7 @@ onePropHeatmap = function(spot_loc, all_result, celltype, legend_pos='bottom', s
           axis.line = element_blank(), # avoid thick axis line in left and bottom border
           legend.title = element_text(size=10), legend.position = legend_pos,
           plot.title = element_text(hjust = 0.5, face = 'bold', margin = margin(t=10, b=0))) +
-    facet_wrap(.~method, ncol = 4)
+    facet_wrap(.~method, ncol = 5)
   
   if (show_celltype) {
     g = g + ggtitle(celltype)
@@ -483,36 +476,35 @@ onePropHeatmap = function(spot_loc, all_result, celltype, legend_pos='bottom', s
   return(g)
 }
 
-print(onePropHeatmap(sim_spot_loc, all_res, 'eL2/3'))
+print(onePropHeatmap(sim_spot_loc, all_res, 'eL2/3', legend_pos = 'right'))
 ```
 
 
-## Figure S1. Heatmap of proportions of 4 cell types in the simulated spatial pseudo-spots
+## Figure S2. Heatmap of proportions of 4 cell types in the simulated spatial pseudo-spots
 
 For Scenario 1 with External reference
 
-```{r, fig.width=9.6, fig.height=6}
+```{r, fig.width=9.6, fig.height=9.6}
 if (save_file) {
-  file_name = file.path(home.dir, 'FigS1_4celltypes_prop_heatmap.pdf')
-  cairo_pdf(file_name, height=6, width=9.6, onefile=T)
+  file_name = file.path(home.dir, 'FigS2_4celltypes_prop_heatmap.pdf')
+  cairo_pdf(file_name, height=9.6, width=9.6, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
 
-ggpubr::ggarrange(onePropHeatmap(sim_spot_loc, all_res, 'eL4', legend_pos = 'right', show_celltype = T),
-                  onePropHeatmap(sim_spot_loc, all_res, 'eL5', legend_pos = 'right', show_celltype = T),
-                  onePropHeatmap(sim_spot_loc, all_res, 'eL6', legend_pos = 'right', show_celltype = T),
-                  onePropHeatmap(sim_spot_loc, all_res, 'Oligo', legend_pos = 'right', show_celltype = T),
+ggpubr::ggarrange(onePropHeatmap(sim_spot_loc, all_res, 'eL4', legend_pos = 'bottom', show_celltype = T),
+                  onePropHeatmap(sim_spot_loc, all_res, 'eL5', legend_pos = 'bottom', show_celltype = T),
+                  onePropHeatmap(sim_spot_loc, all_res, 'eL6', legend_pos = 'bottom', show_celltype = T),
+                  onePropHeatmap(sim_spot_loc, all_res, 'Oligo', legend_pos = 'bottom', show_celltype = T),
                   labels = c('A', 'B', 'C', 'D'), font.label = list(size=18), vjust = 1)
 ```
 
 
-## Figure S2. Correlations between proportions of all cell types in Scenario 1
+## Figure S1. Correlations between proportions of all cell types in Scenario 1
 
-Since we only calculate correlation, we use original proportions without hard-thresholding for **cell2location**, **DestVI** and **CARD**.
 
-```{r, fig.width=7.8, fig.height=6}
+```{r, fig.width=7.8, fig.height=7.8}
 if (save_file) {
-  file_name = file.path(home.dir, 'FigS2_cor_allcelltypes_prop_heatmap.pdf')
+  file_name = file.path(home.dir, 'FigS1_cor_allcelltypes_prop_heatmap.pdf')
   cairo_pdf(file_name, height=6, width=7.8, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
@@ -552,9 +544,9 @@ for (scenario in c("S1_int_ref", "S1_ext_ref")) {
 cor_df['celltype_truth'] = factor(cor_df$celltype_truth, levels = celltype_order)
 cor_df['celltype_pred'] = factor(cor_df$celltype_pred, levels = celltype_order)
 
-# left panel: SDePER, SpatialDWLS, SPOTlight, DestVI
-plot_df = cor_df %>% filter(Method %in% c("SDePER", "SpatialDWLS", "SPOTlight", "DestVI"))
-plot_df['Method'] = factor(plot_df$Method, levels = c("SDePER", "SpatialDWLS", "SPOTlight", "DestVI"))
+# left panel: SDePER, RCTD, cell2location, SPOTlight, DestVI
+plot_df = cor_df %>% filter(Method %in% c("SDePER", "RCTD", "cell2location", "SPOTlight", "DestVI"))
+plot_df['Method'] = factor(plot_df$Method, levels = c("SDePER", "RCTD", "cell2location", "SPOTlight", "DestVI"))
 g1 = ggplot(plot_df, aes(x=celltype_pred, y=celltype_truth, fill=Correlation)) +
   geom_tile() +
   scale_fill_gradient2(limits = c(-1, 1)) +
@@ -568,9 +560,9 @@ g1 = ggplot(plot_df, aes(x=celltype_pred, y=celltype_truth, fill=Correlation)) +
   ylab("True proportion") +
   facet_grid(Method~Reference, switch = 'y')
 
-# right panel: GLRM, cell2location, CARD, RCTD
-plot_df = cor_df %>% filter(Method %in% c("GLRM", "cell2location", "CARD", "RCTD"))
-plot_df['Method'] = factor(plot_df$Method, levels = c("GLRM", "cell2location", "CARD", "RCTD"))
+# right panel: GLRM, SpatialDWLS, SONAR, CARD
+plot_df = cor_df %>% filter(Method %in% c("GLRM", "SpatialDWLS", "SONAR", "CARD"))
+plot_df['Method'] = factor(plot_df$Method, levels = c("GLRM", "SpatialDWLS", "SONAR", "CARD"))
 
 g2 = ggplot(plot_df, aes(x=celltype_pred, y=celltype_truth, fill=Correlation)) +
   geom_tile() +
@@ -584,7 +576,10 @@ g2 = ggplot(plot_df, aes(x=celltype_pred, y=celltype_truth, fill=Correlation)) +
         legend.position = "right") +
   facet_grid(Method~Reference)
 
-figure = ggpubr::ggarrange(g1, g2, widths = c(0.9, 1), align = "h")
+# we need a empty plot in right panel bottom
+g2_plus_empty = ggpubr::ggarrange(g2, NULL, nrow = 2, ncol = 1, heights = c(1, 0.22), align = "v")
+
+figure = ggpubr::ggarrange(g1, g2_plus_empty, widths = c(0.9, 1), align = "h")
 
 # add common axis title in the center of two panels
 ggpubr::annotate_figure(figure, bottom = ggpubr::text_grob("Predicted proportion from reference dataset", hjust=0.55))

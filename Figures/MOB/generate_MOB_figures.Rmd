@@ -30,7 +30,9 @@ home.dir = '/home/hill103/Documents/Spatial/Figures/MOB'
 save_file = FALSE
 
 my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
-method_color = c("SDePER"='#e6194b', "SpatialDWLS"='#3cb44b', "cell2location"='#ffe119', "SPOTlight"='#4363d8', "CARD"='#f58231', "DestVI"='#911eb4', "RCTD"='#46f0f0', "GLRM"='#f032e6')
+method_color = c("SDePER"='#E6194B', "GLRM"='#F032E6', "RCTD"='#46F0F0', "SpatialDWLS"='#3CB44B', "cell2location"='#FFE119',"SONAR"='#9A6324', "SPOTlight"='#4363D8', "CARD"='#F58231', "DestVI"='#911EB4')
+all_methods = names(method_color)
+all_methods = all_methods[all_methods != 'GLRM']
 anno_color = c("GCL"='#f032e6', "GL"='#bcf60c', "MCL"='#fabebe', "ONL"='#008080')
 mob_color = c("GC"='#e6194b', "M/TC"='#3cb44b', "PGC"='#4363d8', "OSNs"='#911eb4', "EPL-IN"='#f58231')
 
@@ -64,9 +66,9 @@ This R Notebook generates figures for Mouse Olfactory Bulb (**MOB**) dataset in 
   * Figure 3E. Heatmap of original and imputed expression of 4 layer-specific marker genes
   * Figure 3F. Heatmap of average imputed expression of 4 layer-specific marker genes at 80 μm level
   * Figure 3G. Barplot of ratio of average imputed expression of 4 layer-specific marker genes at 80 μm level
-  * Figure S3. Heatmap of 5 cell type-specific marker genes
-  * Figure S4. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
-  * Figure S5. Heatmap of imputed expression of 4 layer-specific marker genes by SDePER and CARD
+  * Figure S11. Heatmap of 5 cell type-specific marker genes
+  * Figure S12. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
+  * Figure S13. Heatmap of imputed expression of 4 layer-specific marker genes by SDePER and CARD
 
 
 # Version
@@ -108,7 +110,6 @@ print(sprintf('load data from %s', file_name))
 # check the order of spatial spots and cell types are consistent
 all_spots = row.names(all_res[['Annotation']])
 all_celltypes = colnames(all_res[['SDePER']])
-all_methods = names(all_res)[names(all_res)!='Annotation']
 ```
 
 
@@ -338,13 +339,13 @@ CARD::CARD.visualize.gene(
 ```
 
 
-## Figure S3. Heatmap of 5 cell type-specific marker genes
+## Figure S11. Heatmap of 5 cell type-specific marker genes
 
 Compared with Figure 3A, add *Kit* for EPL-IN.
 
 ```{r, fig.width=11, fig.height=3}
 if (save_file) {
-  file_name = file.path(home.dir, 'FigS3_MOB_5celltype_marker_heatmap.pdf')
+  file_name = file.path(home.dir, 'FigS11_MOB_5celltype_marker_heatmap.pdf')
   cairo_pdf(file_name, height=3, width=11, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
@@ -375,16 +376,14 @@ for (method_name in all_methods) {
   g_list[[method_name]] = CARD::CARD.visualize.pie(
     proportion = all_res_dominat[[method_name]],
     spatial_location = all_res[['Annotation']][, c('x', 'y')],
-    colors = mob_color) + theme(legend.position="none", title=element_text(face=2, size=12)) + ggtitle(method_name)
+    colors = mob_color) + 
+      theme(legend.position="bottom", title=element_text(face=2, size=12)) +
+      scale_fill_manual(values=mob_color, breaks=names(mob_color)) +
+      guides(fill=guide_legend(title="Cell-type")) +
+      ggtitle(method_name)
 }
 
-# get the legend
-g_list[[1]] = g_list[[1]] + theme(legend.position="right") + scale_fill_manual(values=mob_color, breaks=names(mob_color)) + guides(fill=guide_legend(title="Cell-type"))
-g_legend = cowplot::get_legend(g_list[[1]])
-g_list[[1]] = g_list[[1]] + theme(legend.position="none")
-g_list[[length(g_list)+1]] = g_legend
-
-ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv')
+ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv', common.legend = T, legend = 'bottom')
 ```
 
 
@@ -403,16 +402,14 @@ for (method_name in all_methods) {
   g_list[[method_name]] = CARD::CARD.visualize.pie(
     proportion = all_res[[method_name]],
     spatial_location = all_res[['Annotation']][, c('x', 'y')],
-    colors = mob_color) + theme(legend.position="none", title=element_text(face=2, size=12)) + ggtitle(method_name)
+    colors = mob_color) + 
+      theme(legend.position="bottom", title=element_text(face=2, size=12)) +
+      scale_fill_manual(values=mob_color, breaks=names(mob_color)) +
+      guides(fill=guide_legend(title="Cell-type")) +
+      ggtitle(method_name)
 }
 
-# get the legend
-g_list[[1]] = g_list[[1]] + theme(legend.position="right") + scale_fill_manual(values=mob_color, breaks=names(mob_color)) + guides(fill=guide_legend(title="Cell-type"))
-g_legend = cowplot::get_legend(g_list[[1]])
-g_list[[1]] = g_list[[1]] + theme(legend.position="none")
-g_list[[length(g_list)+1]] = g_legend
-
-ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv')
+ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv', common.legend = T, legend = 'bottom')
 ```
 
 
@@ -430,21 +427,22 @@ plot_df$Method = factor(plot_df$Method, levels = all_methods)
 
 ggplot(plot_df, aes(x=Method, y=value)) +
   geom_bar(stat="identity", fill="steelblue") +
-  geom_text(aes(label=round(value, 2)), vjust=1.1, size=6, color="white") +
+  geom_text(aes(label=round(value, 2), y=ifelse(value<0.1, value+0.10, value), color=ifelse(value<0.1, "black", "white")), vjust=1.1, size=6) +
   theme_classic() +
   theme(axis.text = element_text(color="black", size=12),
         strip.text = element_text(size=16),
         axis.title = element_blank(),
         axis.text.x = element_text(angle=45, hjust=1)) +
-  facet_wrap(measure~., ncol=1, scales="free_y")
+  facet_wrap(measure~., ncol=1, scales="free_y") +
+  scale_color_identity() # to make sure ggplot2 uses the set conditional colors
 ```
 
 
-## Figure S4. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
+## Figure S12. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
 
 ```{r, fig.width=14.5, fig.height=6}
 if (save_file) {
-  file_name = file.path(home.dir, 'FigS4_MOB_celltype_prop_heatmap_impute.pdf')
+  file_name = file.path(home.dir, 'FigS12_MOB_celltype_prop_heatmap_impute.pdf')
   cairo_pdf(file_name, height=6, width=14.5, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
@@ -539,13 +537,13 @@ ggpubr::ggarrange(plotlist = g_list, ncol=1, nrow=4, common.legend = T, legend =
 ```
 
 
-## Figure S5. Heatmap of imputed expression of 4 layer-specific marker genes by SDePER and CARD
+## Figure S13. Heatmap of imputed expression of 4 layer-specific marker genes by SDePER and CARD
 
 *Penk* for GCL, *Slc17a7* for MCL, *Nrsn1* for GL, *Nr2f2* for ONL.
 
 ```{r, fig.width=17, fig.height=6}
 if (save_file) {
-  file_name = file.path(home.dir, 'FigS5_MOB_4layer_marker_heatmap_impute_allmethods.pdf')
+  file_name = file.path(home.dir, 'FigS13_MOB_4layer_marker_heatmap_impute_allmethods.pdf')
   cairo_pdf(file_name, height=6, width=17, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
@@ -564,7 +562,7 @@ for (this_diameter in c('160', '114', '80')) {
       colors = NULL,
       NumCols = 4) +
       geom_point(aes(color=value), size=3, shape=15, position=position_dodge2(width=0.05)) +
-      theme(legend.position="right", plot.subtitle=element_text(size=14)) + labs(subtitle = sprintf('%s μm', this_diameter))
+      theme(legend.position="right", plot.subtitle=element_text(size=14)) + guides(color=guide_colourbar(title="Exp")) + labs(subtitle = sprintf('%s μm', this_diameter))
   }
 }
 

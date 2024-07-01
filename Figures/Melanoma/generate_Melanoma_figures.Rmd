@@ -30,9 +30,12 @@ home.dir = '/home/hill103/Documents/Spatial/Figures/Melanoma'
 save_file = FALSE
 
 my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
-method_color = c("SDePER"='#e6194b', "SpatialDWLS"='#3cb44b', "cell2location"='#ffe119', "SPOTlight"='#4363d8', "CARD"='#f58231', "DestVI"='#911eb4', "RCTD"='#46f0f0', "GLRM"='#f032e6')
+method_color = c("SDePER"='#E6194B', "GLRM"='#F032E6', "RCTD"='#46F0F0', "SpatialDWLS"='#3CB44B', "cell2location"='#FFE119',"SONAR"='#9A6324', "SPOTlight"='#4363D8', "CARD"='#F58231', "DestVI"='#911EB4')
+all_methods = names(method_color)
+all_methods  = all_methods [all_methods  != 'GLRM']
 anno_color = c("LT 1"='#f032e6', "Stroma"='#bcf60c', "LT 2"='#fabebe', "Melanoma"='#008080')
 melanoma_color = c("B.cell"='#e6194b', "CAF"='#3cb44b', "Endo."='#ffe119', "Macrophage"='#4363d8', "Mal"='#f58231', "NK"='#911eb4', "T.cell"='#46f0f0')
+
 
 mela_layer_marker = c("Melanoma"="PMEL", "Stroma"="COL1A1", "LT 2"="CXCL10", "LT 1"="MS4A1")
 mela_celltype_marker = c('PMEL', 'COL1A1', 'CD14', 'MS4A1')
@@ -65,9 +68,9 @@ This R Notebook generates figures for **Melanoma** dataset in Real Data Analysis
   * Figure 4E. Heatmap of original and imputed expression of 4 region-specific marker genes
   * Figure 4F. Heatmap of average imputed expression of 4 region-specific marker genes at 80 μm level
   * Figure 4G. Barplot of ratio of average imputed expression of 4 region-specific marker genes at 80 μm level
-  * Figure S6. Heatmap of 7 cell type-specific marker genes
-  * Figure S7. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
-  * Figure S8. Heatmap of imputed expression of 4 region-specific marker genes by SDePER and CARD
+  * Figure S14. Heatmap of 7 cell type-specific marker genes
+  * Figure S16. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
+  * Figure S17. Heatmap of imputed expression of 4 region-specific marker genes by SDePER and CARD
 
 
 # Version
@@ -99,7 +102,7 @@ gene_numi = as.data.frame(t(gene_numi))
 
 ## Read estimated cell type proportions by all methods
 
-NOTE: cell type deconvolution results from **SpatialDWLS**, **CARD** and **DestVI** are 1 spot fewer than all 293 spatial spots.
+NOTE: cell type deconvolution results from **RCTD**, **SpatialDWLS**, **CARD**, **SONAR** and **DestVI** are 1 spot fewer than all 293 spatial spots.
 
 ```{r}
 file_name = file.path(home.dir, 'Melanoma_all_results.rds')
@@ -109,7 +112,6 @@ print(sprintf('load data from %s', file_name))
 # check the order of spatial spots and cell types are consistent
 all_spots = row.names(all_res[['Annotation']])
 all_celltypes = colnames(all_res[['SDePER']])
-all_methods = names(all_res)[names(all_res)!='Annotation']
 ```
 
 
@@ -117,7 +119,7 @@ Check the order of spots and cell types are consistent before performance evalua
 
 ```{r}
 for (method_name in all_methods) {
-  if (method_name %in% c('SpatialDWLS', 'CARD', 'DestVI')) {
+  if (method_name %in% c('RCTD', 'SONAR', 'SpatialDWLS', 'CARD', 'DestVI')) {
     stopifnot(all(row.names(all_res[[method_name]]) == row.names(all_res[['SpatialDWLS']])))
   } else {
     stopifnot(all(row.names(all_res[[method_name]]) == all_spots))
@@ -346,13 +348,13 @@ CARD::CARD.visualize.gene(
 ```
 
 
-## Figure S6. Heatmap of 7 cell type-specific marker genes
+## Figure S14. Heatmap of 7 cell type-specific marker genes
 
 *PMEL* for malignant melanoma, *COL1A1* for CAF, *C1QC* for macrophage, *MS4A1* for B cell, *CD2* for T cell, *GNLY* for NK cell, and *VWF* for endothelial cell.
 
 ```{r, fig.width=9, fig.height=4}
 if (save_file) {
-  file_name = file.path(home.dir, 'FigS6_Melanoma_7celltype_marker_heatmap.pdf')
+  file_name = file.path(home.dir, 'FigS14_Melanoma_7celltype_marker_heatmap.pdf')
   cairo_pdf(file_name, height=4, width=9, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
@@ -383,16 +385,14 @@ for (method_name in all_methods) {
   g_list[[method_name]] = CARD::CARD.visualize.pie(
     proportion = all_res_dominat[[method_name]],
     spatial_location = all_res[['Annotation']][row.names(all_res_dominat[[method_name]]), c('x', 'y')],
-    colors = melanoma_color, radius=0.55) + theme(legend.position="none", title=element_text(face=2, size=12)) + ggtitle(method_name)
+    colors = melanoma_color, radius=0.55) +
+      theme(legend.position="bottom", title=element_text(face=2, size=12)) +
+      scale_fill_manual(values=melanoma_color, breaks=names(melanoma_color), labels=celltype_label) +
+      guides(fill=guide_legend(title="Cell-type")) +
+      ggtitle(method_name)
 }
 
-# get the legend
-g_list[[1]] = g_list[[1]] + theme(legend.position="right") + scale_fill_manual(values=melanoma_color, breaks=names(melanoma_color), labels=celltype_label) + guides(fill=guide_legend(title="Cell-type"))
-g_legend = cowplot::get_legend(g_list[[1]])
-g_list[[1]] = g_list[[1]] + theme(legend.position="none")
-g_list[[length(g_list)+1]] = g_legend
-
-ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv')
+ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv', common.legend = T, legend = 'bottom')
 ```
 
 
@@ -411,16 +411,14 @@ for (method_name in all_methods) {
   g_list[[method_name]] = CARD::CARD.visualize.pie(
     proportion = all_res[[method_name]],
     spatial_location = all_res[['Annotation']][row.names(all_res[[method_name]]), c('x', 'y')],
-    colors = melanoma_color, radius=0.55) + theme(legend.position="none", title=element_text(face=2, size=12)) + ggtitle(method_name)
+    colors = melanoma_color, radius=0.55) +
+      theme(legend.position="bottom", title=element_text(face=2, size=12)) +
+      scale_fill_manual(values=melanoma_color, breaks=names(melanoma_color), labels=celltype_label) +
+      guides(fill=guide_legend(title="Cell-type")) +
+      ggtitle(method_name)
 }
 
-# get the legend
-g_list[[1]] = g_list[[1]] + theme(legend.position="right") + scale_fill_manual(values=melanoma_color, breaks=names(melanoma_color), labels=celltype_label) + guides(fill=guide_legend(title="Cell-type"))
-g_legend = cowplot::get_legend(g_list[[1]])
-g_list[[1]] = g_list[[1]] + theme(legend.position="none")
-g_list[[length(g_list)+1]] = g_legend
-
-ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv')
+ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 2, align = 'hv', common.legend = T, legend = 'bottom')
 ```
 
 
@@ -449,11 +447,11 @@ ggplot(plot_df, aes(x=Method, y=value)) +
 ```
 
 
-## Figure S7. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
+## Figure S16. Heatmap of estimated and imputed cell type proportions by SDePER and CARD
 
 ```{r, fig.width=14, fig.height=14}
 if (save_file) {
-  file_name = file.path(home.dir, 'FigS7_Melanoma_celltype_prop_heatmap_impute.pdf')
+  file_name = file.path(home.dir, 'FigS16_Melanoma_celltype_prop_heatmap_impute.pdf')
   cairo_pdf(file_name, height=14, width=14, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
@@ -548,13 +546,13 @@ ggpubr::ggarrange(plotlist = g_list, ncol=1, nrow=4, common.legend = T, legend =
 ```
 
 
-## Figure S8. Heatmap of imputed expression of 4 region-specific marker genes by SDePER and CARD
+## Figure S17. Heatmap of imputed expression of 4 region-specific marker genes by SDePER and CARD
 
 *PMEL* for Melanoma, *COL1A1* for Stroma, *CXCL10* for LT 2, *MS4A1* for LT 1.
 
 ```{r, fig.width=14.5, fig.height=6}
 if (save_file) {
-  file_name = file.path(home.dir, 'FigS8_Melanoma_4region_marker_heatmap_impute_allmethods.pdf')
+  file_name = file.path(home.dir, 'FigS17_Melanoma_4region_marker_heatmap_impute_allmethods.pdf')
   cairo_pdf(file_name, height=6, width=14.5, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
@@ -573,7 +571,7 @@ for (this_diameter in c('160', '114', '80')) {
       colors = NULL,
       NumCols = 4) +
       geom_point(aes(color=value), size=3, shape=15, position=position_dodge2(width=0.05)) +
-      theme(legend.position="right", plot.subtitle=element_text(size=14)) + labs(subtitle = sprintf('%s μm', this_diameter))
+      theme(legend.position="right", plot.subtitle=element_text(size=14)) + guides(color=guide_colourbar(title="Exp")) + labs(subtitle = sprintf('%s μm', this_diameter))
   }
 }
 

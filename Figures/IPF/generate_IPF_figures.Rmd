@@ -32,8 +32,9 @@ home.dir = '/home/hill103/Documents/Spatial/Figures/IPF'
 save_file = FALSE
 
 my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
-method_color = c("SDePER"='#e6194b', "SpatialDWLS"='#3cb44b', "cell2location"='#ffe119', "SPOTlight"='#4363d8', "CARD"='#f58231', "DestVI"='#911eb4', "RCTD"='#46f0f0', "GLRM"='#f032e6')
-
+method_color = c("SDePER"='#E6194B', "GLRM"='#F032E6', "RCTD"='#46F0F0', "SpatialDWLS"='#3CB44B', "cell2location"='#FFE119',"SONAR"='#9A6324', "SPOTlight"='#4363D8', "CARD"='#F58231', "DestVI"='#911EB4')
+all_methods = names(method_color)
+all_methods = all_methods[all_methods != 'GLRM']
 
 ipf_celltype_marker = c("SMC-Vascular"="MYH11", "Ciliated"="FOXJ1", "ATI"="AQP4", "ATII"="SFTPA1")
 ```
@@ -54,7 +55,7 @@ This R Notebook generates figures for idiopathic pulmonary fibrosis (**IPF**) lu
   * Figure 6C. Visualization of inferred cell type proportions in each spot of 4 methods
   * Figure 6D. Barplot of weighted mean of expressions of 4 cell type-specific marker genes
   * Figure 6E. Heatmap of pairwise correlation of estimated cell type proportions
-  * Figure S12. Visualization of inferred cell type proportions in each spot of all methods
+  * Figure S23. Visualization of inferred cell type proportions in each spot of all methods
 
 
 # Version
@@ -98,7 +99,7 @@ print(sprintf('spots covered by tissue: %d (%.2f%%)', ncol(ipf_obj), ncol(ipf_ob
 
 ## Read estimated cell type proportions by all methods
 
-NOTE: cell type deconvolution results from **SpatialDWLS** and **CARD** are fewer than all 3,532 spatial spots.
+NOTE: cell type deconvolution results from **SpatialDWLS**, **CARD**, **RCTD** and **SONAR** are fewer than all 3,532 spatial spots.
 
 ```{r}
 file_name = file.path(home.dir, 'IPF_all_results.rds')
@@ -108,7 +109,6 @@ print(sprintf('load data from %s', file_name))
 # check the order of spatial spots and cell types are consistent
 all_spots = row.names(all_res[['SDePER']])
 all_celltypes = colnames(all_res[['SDePER']])
-all_methods = names(all_res)
 ```
 
 
@@ -116,7 +116,7 @@ Check the order of spots and cell types are consistent before performance evalua
 
 ```{r}
 for (method_name in all_methods) {
-  if (method_name %notin% c('SpatialDWLS', 'CARD')) {
+  if (method_name %notin% c('SpatialDWLS', 'CARD', 'RCTD', 'SONAR')) {
     stopifnot(all(row.names(all_res[[method_name]]) == all_spots))
   }
   stopifnot(all(colnames(all_res[[method_name]]) == all_celltypes))
@@ -222,7 +222,7 @@ for (method_name in names(all_res)) {
 
 avg_exp_df[avg_exp_df$celltype=='SMC-Vascular', 'celltype'] = 'SMC'
 avg_exp_df$celltype = factor(avg_exp_df$celltype, levels = c("SMC", "Ciliated", "ATI", "ATII"))
-avg_exp_df$method = factor(avg_exp_df$method, levels = names(all_res))
+avg_exp_df$method = factor(avg_exp_df$method, levels = all_methods)
 avg_exp_df$avg_exp = as.numeric(avg_exp_df$avg_exp)
 
 ggplot(avg_exp_df, aes(x=method, y=avg_exp, fill=method)) +
@@ -258,7 +258,7 @@ myPalette = colorRampPalette(colors = rev(x = RColorBrewer::brewer.pal(n = 11, n
 
 g_list = list()
 
-for (method_name in c("SDePER", "SpatialDWLS", "DestVI", "RCTD")) {
+for (method_name in c("SDePER", "RCTD", "SpatialDWLS", "DestVI")) {
   for (this_celltype in c("SMC-Vascular", "Ciliated", "ATI", "ATII")) {
     # assign to meta data then plot; Seurat will match the spot order automatically, and assign NA to spots without corresponding values
     if (this_celltype == 'SMC-Vascular') {
@@ -294,16 +294,16 @@ ggpubr::ggarrange(plotlist = g_list, ncol = 4, nrow = 4, align = 'hv', common.le
 ```
 
 
-## Figure S12. Visualization of inferred cell type proportions in each spot of all methods
+## Figure S23. Visualization of inferred cell type proportions in each spot of all methods
 
 Compared with Figure 6C, we show the same 4 cell types (SMC, Ciliated cells, ATI and ATII cells) but all methods.
 
 NOTE: we assign similar colors for cell type proportions falling in [0.5, 1].
 
-```{r, fig.width=15, fig.height=9}
+```{r, fig.width=17, fig.height=9}
 if (save_file) {
-  file_name = file.path(home.dir, 'FigS12_IPF_4celltype_props_allmethods.pdf')
-  cairo_pdf(file_name, height=9, width=15, onefile=T)
+  file_name = file.path(home.dir, 'FigS23_IPF_4celltype_props_allmethods.pdf')
+  cairo_pdf(file_name, height=9, width=17, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
 
@@ -312,7 +312,7 @@ myPalette = colorRampPalette(colors = rev(x = RColorBrewer::brewer.pal(n = 11, n
 g_list = list()
 
 for (this_celltype in c("SMC-Vascular", "Ciliated", "ATI", "ATII")) {
-  for (method_name in names(all_res)) {
+  for (method_name in all_methods) {
     # assign to meta data then plot; Seurat will match the spot order automatically, and assign NA to spots without corresponding values
     if (this_celltype == 'SMC-Vascular') {
       ipf_obj[['SMC']] = all_res[[method_name]][, this_celltype, drop=F]
@@ -343,7 +343,7 @@ for (this_celltype in c("SMC-Vascular", "Ciliated", "ATI", "ATII")) {
   }
 }
 
-ggpubr::ggarrange(plotlist = g_list, ncol = 7, nrow = 4, align = 'hv', common.legend = T, legend = 'right')
+ggpubr::ggarrange(plotlist = g_list, ncol = 8, nrow = 4, align = 'hv', common.legend = T, legend = 'right')
 ```
 
 
@@ -351,10 +351,10 @@ ggpubr::ggarrange(plotlist = g_list, ncol = 7, nrow = 4, align = 'hv', common.le
 
 NOTE: we use **Spearman's rank correlation coefficient**, and set the color map to place greater emphasis (in terms of the number of distinct colors) on correlation coefficient range [-0.4, 0.4].
 
-```{r, fig.width=18, fig.height=7}
+```{r, fig.width=20.5, fig.height=7}
 if (save_file) {
   file_name = file.path(home.dir, 'Fig6E_IPF_celltype_prop_cor_heatmap.pdf')
-  cairo_pdf(file_name, height=7, width=18, onefile=T)
+  cairo_pdf(file_name, height=7, width=20.5, onefile=T)
   print(sprintf('figures saved in file %s', file_name))
 }
 
@@ -391,6 +391,7 @@ draw_corr_map = function(df, method_name, heatmap_color, show_axis_label, show_l
     row_split = split_groups,
     column_split = split_groups,
     column_title = method_name, # use it as the figure title
+    column_title_gp = grid::gpar(fontsize = 18),
     row_title = show_row_group,
     show_row_names = show_axis_label, # show/hide row names
     show_column_names = show_axis_label, # show/hide column names
@@ -412,7 +413,7 @@ heatmap_col = circlize::colorRamp2(color_breaks, rev(col_palette(length(color_br
   
 g_list = list()
 
-for (method_name in names(all_res)) {
+for (method_name in c("SDePER", "RCTD", "SpatialDWLS", "cell2location", "DestVI", "SONAR", "SPOTlight", "CARD")) {
   # replace cell type name SMC-Vascular to SMC
   tmp_df = all_res[[method_name]]
   colnames(tmp_df)[colnames(tmp_df)=='SMC-Vascular'] = 'SMC'
@@ -426,16 +427,17 @@ for (method_name in names(all_res)) {
 g_legend = ComplexHeatmap::Legend(col_fun = heatmap_col, title = 'Corr', legend_height = unit(4, 'cm'), grid_width = unit(0.8, 'cm'), labels_gp = grid::gpar(fontsize = 16), title_gp = grid::gpar(fontsize = 18, font = 2))
 
 # combine heatmaps using multipanelfigure
-print(multi_panel_figure(width = c(80, 80, 80, 80, 80, 30), height = c(80, 80), panel_label_type	= 'none') %>%
+print(multi_panel_figure(width = c(80, 80, 80, 80, 80, 80), height = c(80, 80), panel_label_type	= 'none') %>%
   fill_panel(g_list[[1]], column = 1:2, row=1:2) %>%
   fill_panel(g_list[[2]], column = 3, row = 1) %>%
   fill_panel(g_list[[3]], column = 4, row = 1) %>%
   fill_panel(g_list[[4]], column = 5, row = 1) %>%
-  fill_panel(g_list[[5]], column = 3, row = 2) %>%
-  fill_panel(g_list[[6]], column = 4, row = 2) %>%
-  fill_panel(g_list[[7]], column = 5, row = 2) %>%
+  fill_panel(g_list[[5]], column = 6, row = 1) %>%
+  fill_panel(g_list[[6]], column = 3, row = 2) %>%
+  fill_panel(g_list[[7]], column = 4, row = 2) %>%
+  fill_panel(g_list[[8]], column = 5, row = 2) %>%
   # use grid.grabExpr to capture the output of a graphical expression as a grob, then it can be supported by multipanelfigure
-  fill_panel(grid::grid.grabExpr(grid::grid.draw(g_legend)), column = 6, row = 1:2)
+  fill_panel(grid::grid.grabExpr(grid::grid.draw(g_legend)), column = 6, row = 2)
 )
 ```
 
