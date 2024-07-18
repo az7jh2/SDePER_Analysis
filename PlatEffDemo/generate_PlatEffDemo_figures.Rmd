@@ -1,0 +1,405 @@
+---
+title: "Generate figures in Platform Effect Demonstration"
+author: "Ningshan Li"
+date: "2024/07/14"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+# use ggpubr package (http://www.sthda.com/english/articles/24-ggpubr-publication-ready-plots/81-ggplot2-easy-way-to-mix-multiple-graphs-on-the-same-page/)
+library(dplyr)
+library(ggplot2)
+
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+home.dir = '/home/hill103/Documents/Spatial/PlatEffDemo'
+save_file = FALSE
+
+my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
+method_color = c("SDePER"='#e6194b', "GLRM"='#f032e6', "NO_PlatEffRmv"='#808000')
+```
+
+
+# Summary
+
+This R Notebook generates figures for **Platform Effect Demonstration**.
+
+1.  **Inputs**:
+
+    * [`all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/PlatEffDemo/PlatEffDemo_all_results.rds): cell type deconvolution results.
+    * [`PlatEffDemo_ref_scRNA_SDePER_WITH_CVAE_diagnosis.tar`](https://github.com/az7jh2/SDePER_Analysis/blob/main/PlatEffDemo/PlatEffDemo_ref_scRNA_SDePER_WITH_CVAE_diagnosis.tar): Compressed file including all diagnostic plots from running SDePER in this simulation.
+    * [`STARmap_cell_celltype.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/STARmap_cell_celltype.csv): cell type annotation of all 2,002 STARmap cells.
+    * [`ref_scRNA_cell_celltype.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/ref_scRNA_cell_celltype.csv): cell type annotation of cells in external scRNA-seq reference data.
+
+2.  **Outputs**:
+
+    * Figure. UMAP of STARmap and scRNA-seq reference cells before and after CVAE transforming, as well as the UMAP of latent embeddings of those cells
+    * Figure. Boxplot of performance on simulated data
+
+
+
+# Version
+
+```{r}
+version[['version.string']]
+print(sprintf('Package %s version: %s', 'ggplot2', packageVersion('ggplot2')))
+print(sprintf('Package %s version: %s', 'ggpubr', packageVersion('ggpubr')))
+print(sprintf('Package %s version: %s', 'philentropy', packageVersion('philentropy'))) # JSD function
+```
+
+# Read relevant files
+
+## Read STARmap cell annotation
+
+```{r}
+file_name = file.path(home.dir, 'STARmap_cell_celltype.csv')
+starmap_cell_anno = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+print(sprintf('load data from %s', file_name))
+print(sprintf('total %d cells', nrow(starmap_cell_anno)))
+table(starmap_cell_anno$celltype)
+```
+
+generate the truth cell type proportion.
+
+```{r}
+celltype_order = c("Astro", "eL2/3", "eL4", "eL5", "eL6", "Endo", "Micro", "Oligo", "PVALB", "Smc", "SST", "VIP")
+truth = data.frame(matrix(0, nrow=nrow(starmap_cell_anno), ncol=length(celltype_order)))
+colnames(truth) = celltype_order
+row.names(truth) = row.names(starmap_cell_anno)
+
+for (i in 1:nrow(starmap_cell_anno)) {
+  truth[i, starmap_cell_anno[i, 'celltype']] = 1
+}
+```
+
+
+## Read cell type annotation of external reference
+
+```{r}
+file_name = file.path(home.dir, 'ref_scRNA_cell_celltype.csv')
+ref_cell_anno = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+print(sprintf('load data from %s', file_name))
+print(sprintf('total %d cells', nrow(ref_cell_anno)))
+table(ref_cell_anno$celltype)
+```
+
+Combine cell type annotations of STARmap cells and scRNA-seq cells.
+
+```{r}
+starmap_cell_anno$dataset = 'Spatial'
+ref_cell_anno$dataset = 'Reference'
+
+comb_cell_anno = rbind(starmap_cell_anno, ref_cell_anno)
+```
+
+
+
+## Read estimated cell type proportions
+
+```{r}
+file_name = file.path(home.dir, 'PlatEffDemo_all_results.rds')
+all_res = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+```
+
+Check the order of spots and cell types are consistent before performance evaluation.
+
+```{r}
+for (method_name in names(all_res)) {
+  stopifnot(all(row.names(all_res[[method_name]]) == row.names(truth)))
+  stopifnot(all(colnames(all_res[[method_name]]) == colnames(truth)))
+}
+```
+
+Check whether negative values of estimated cell type proportions exist, as negative values may cause error in JSD calculation and got `NaN`. Replace them as 0.
+
+```{r}
+for (method_name in names(all_res)) {
+  tmp_df = all_res[[method_name]]
+  for (i in 1:nrow(tmp_df)) {
+    for (j in 1:ncol(tmp_df)) {
+      if (tmp_df[i, j] < 0) {
+        print(sprintf('%s result: row %d (%s) column %d (%s) has negative value %g', method_name, i, row.names(tmp_df)[i], j, colnames(tmp_df)[j], tmp_df[i, j]))
+        # replace them with 0
+        all_res[[method_name]][i, j] = 0
+      }
+    }
+  }
+}
+```
+
+
+## Read UMAP coordinates before CVAE transformation
+
+UMAP coordinates for gene expression of spatial spots and scRNA-seq reference cells are in file `UMAP_coordinates_raw_input.csv`.
+
+```{r}
+file_name = file.path(home.dir, 'PlatEffDemo_ref_scRNA_SDePER_WITH_CVAE_diagnosis', 'diagnosis', 'raw_input_data', 'UMAP_coordinates_raw_input.csv')
+umap_before = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+print(sprintf('load data from %s', file_name))
+print(sprintf('total %d rows', nrow(umap_before)))
+```
+
+Add the cell type annotation.
+
+```{r}
+umap_before = merge(umap_before, comb_cell_anno, by = 'row.names')
+```
+
+
+## Read UMAP coordinates in CVAE latent space
+
+UMAP coordinates for embedding in CVAE latent space of spatial spots and scRNA-seq reference cells are in file `UMAP_coordinates_latent_mu_embedding_spatial_spots.csv` and `UMAP_coordinates_latent_mu_embedding_scRNA-seq_cells.csv`.
+
+```{r}
+file_name = file.path(home.dir, 'PlatEffDemo_ref_scRNA_SDePER_WITH_CVAE_diagnosis', 'diagnosis', 'CVAE_latent_space', 'UMAP_coordinates_latent_mu_embedding_spatial_spots.csv')
+umap_latent_spatial = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+print(sprintf('load data from %s', file_name))
+
+file_name = file.path(home.dir, 'PlatEffDemo_ref_scRNA_SDePER_WITH_CVAE_diagnosis', 'diagnosis', 'CVAE_latent_space', 'UMAP_coordinates_latent_mu_embedding_scRNA-seq_cells.csv')
+umap_latent_ref = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+print(sprintf('load data from %s', file_name))
+
+umap_latent = rbind(umap_latent_spatial, umap_latent_ref)
+print(sprintf('total %d rows', nrow(umap_latent)))
+```
+
+Add the cell type annotation.
+
+```{r}
+umap_latent = merge(umap_latent, comb_cell_anno, by = 'row.names')
+```
+
+
+## Read UMAP coordinates after CVAE transformation
+
+UMAP coordinates for gene expression of spatial spots and scRNA-seq reference cells are in file `UMAP_coordinates_decoded_value.csv`.
+
+```{r}
+file_name = file.path(home.dir, 'PlatEffDemo_ref_scRNA_SDePER_WITH_CVAE_diagnosis', 'diagnosis', 'CVAE_transformed_data', 'UMAP_coordinates_decoded_value.csv')
+umap_after = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+print(sprintf('load data from %s', file_name))
+print(sprintf('total %d rows', nrow(umap_after)))
+```
+
+Add the cell type annotation.
+
+```{r}
+umap_after = merge(umap_after, comb_cell_anno, by = 'row.names')
+```
+
+
+
+# Evaluate performance of cell type deconvolution methods
+
+## Calculate spot-wise performance of all methods
+
+5 performance measurements:
+
+* root mean square error (**RMSE**): quantifies the overall estimation accuracy
+* Jensen-Shannon Divergence (**JSD**): assesses similarity between the estimated cell type distribution and ground-truth per spot
+* **Pearson's correlation coefficient**: measures the similarity of estimation to ground-truth
+* false discovery rate (**FDR**): measures how many cell types were falsely predicted to be present
+* false negative rate (**FNR**): measures how many presented cell types were falsely predicted to be not present
+
+```{r}
+binaryPredEvaluation = function(truth, pred) {
+  # Given an array of truth and predictions (either 0 or 1), calculate confusion matrix
+  # convert to factors to ensure get a full 2*2 confusion matrix
+  truth_factor = factor(truth, levels = c(0, 1))
+  pred_factor = factor(pred, levels = c(0, 1))
+  # Generate confusion matrix
+  conf_matrix = table(Actual = truth_factor, Predicted = pred_factor)
+  # Extract elements of the confusion matrix
+  TP = conf_matrix[2, 2]
+  FP = conf_matrix[1, 2]
+  FN = conf_matrix[2, 1]
+  TN = conf_matrix[1, 1]
+  # Calculate FDR (False Discovery Rate)
+  FDR = FP / (TP + FP)
+  # Calculate FNR (False Negative Rate)
+  FNR = FN / (TP + FN)
+  return(c(FDR, FNR))
+}
+
+calcPerformance = function(truth, pred) {
+  # calculate RMSE, JSD, correlation and FDR for each row
+  # inputs are matrix with rows as spots and columns as cell types, order has been checked to be consistent
+  stopifnot(all(row.names(truth) == row.names(pred)))
+  stopifnot(all(colnames(truth) == colnames(pred)))
+  
+  # binary cell type proportions (0:absent; 1:present)
+  truth_binary = truth != 0
+  pred_binary = pred != 0
+  # in-place conversion from bool to 0/1 while keeping dimensions, row names and column names, as `as.numeric()` will "flattern" the original matrix
+  truth_binary[] = as.numeric(truth_binary)
+  pred_binary[] = as.numeric(pred_binary)
+  
+  perform_df = data.frame(matrix(ncol=5, nrow=0))
+  colnames(perform_df) = c('RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
+  
+  for (i in 1:nrow(truth)) {
+    RMSE = sqrt(mean((truth[i,] - pred[i,]) ^ 2))
+    if (sum(pred[i,])>0 & sum(truth[i,])>0) {
+      JSD = philentropy::JSD(rbind(truth[i,], pred[i,]), unit = 'log2', est.prob = 'empirical')
+    } else {
+      JSD = 1
+    }
+    Pearson = cor.test(truth[i,], pred[i,])$estimate
+    tmp = binaryPredEvaluation(truth_binary[i,], pred_binary[i,])
+    FDR = tmp[1]
+    FNR = tmp[2]
+    
+    perform_df[nrow(perform_df)+1, ] = c(RMSE, JSD, Pearson, FDR, FNR)
+  }
+  
+  # also record spot names
+  stopifnot(nrow(perform_df) == nrow(truth))
+  perform_df['Spot'] = row.names(truth)
+  
+  return(perform_df)
+}
+
+
+all_perform = list()
+
+for (method_name in names(all_res)) {
+  all_perform[[method_name]] = calcPerformance(as.matrix(truth), as.matrix(all_res[[method_name]]))
+}
+```
+
+
+## Summary spot-wise performance into method-wise
+
+```{r}
+perform_raw_df = data.frame(matrix(ncol=10, nrow=0))
+colnames(perform_raw_df) = c('Dataset', 'Scenario', 'Method', 'Reference', 'Spot', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
+
+# calculate median performance across all spatial spots for all methods
+perform_median_df = data.frame(matrix(ncol=9, nrow=0))
+colnames(perform_median_df) = c('Dataset', 'Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')
+
+this_dataset = 'STARmap-based'
+this_scenario = 'Scenario 1'
+this_ref = 'External'
+      
+for (method_name in names(all_perform)) {
+  tmp_df = all_perform[[method_name]]
+  tmp_df['Dataset'] = this_dataset
+  tmp_df['Scenario'] = this_scenario
+  tmp_df['Method'] = method_name
+  tmp_df['Reference'] = this_ref
+    
+  perform_raw_df = rbind(perform_raw_df, tmp_df[, c('Dataset', 'Scenario', 'Method', 'Reference', 'Spot', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')])
+    
+  perform_median_df[nrow(perform_median_df)+1, ] = c(this_dataset, this_scenario, method_name, this_ref,
+                                                     round(median(tmp_df$RMSE), 3),
+                                                     round(median(tmp_df$JSD), 3),
+                                                     round(median(tmp_df$Pearson), 3),
+                                                     round(median(tmp_df$FDR), 3),
+                                                     round(median(tmp_df$FNR), 3))
+}
+
+# set method column as factors
+perform_raw_df['Method'] = factor(perform_raw_df$Method, levels = c("SDePER", "GLRM", "NO_PlatEffRmv"))
+
+perform_median_df[, c('Dataset', 'Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')]
+```
+
+
+# Draw figures
+
+## UMAP of spatial spots and reference cells before CVAE transformation
+
+```{r, fig.width=10, fig.height=5}
+ggplot(umap_before, aes(x=UMAP1, y=UMAP2, color=celltype)) +
+  geom_point(shape=20, size=0.5) +
+  theme_classic() +
+  scale_color_manual(values = my_color) +
+  facet_grid(~dataset) +
+  theme(legend.title = element_blank(), strip.text = element_text(size=14)) +
+  guides(color = guide_legend(override.aes = list(size = 3)))
+```
+
+
+## UMAP of spatial spots and reference cells in CVAE latent space
+
+```{r, fig.width=10, fig.height=5}
+ggplot(umap_latent, aes(x=UMAP1, y=UMAP2, color=celltype)) +
+  geom_point(shape=20, size=0.5) +
+  theme_classic() +
+  scale_color_manual(values = my_color) +
+  facet_grid(~dataset) +
+  theme(legend.title = element_blank(), strip.text = element_text(size=14)) +
+  guides(color = guide_legend(override.aes = list(size = 3)))
+```
+
+
+## UMAP of spatial spots and reference cells after CVAE transformation
+
+```{r, fig.width=10, fig.height=5}
+ggplot(umap_after, aes(x=UMAP1, y=UMAP2, color=celltype)) +
+  geom_point(shape=20, size=0.5) +
+  theme_classic() +
+  scale_color_manual(values = my_color) +
+  facet_grid(~dataset) +
+  theme(legend.title = element_blank(), strip.text = element_text(size=14)) +
+  guides(color = guide_legend(override.aes = list(size = 3)))
+```
+
+
+
+## Boxplot of performance of all methods
+
+```{r, fig.width=5, fig.height=2}
+plot_df = perform_raw_df
+
+g_list = list()
+
+for (perform_ind in c('RMSE', 'Pearson', 'JSD', 'FDR')) {
+  g_list[[perform_ind]] = ggplot(plot_df, aes(x=Method, y=.data[[perform_ind]], fill=Method)) +
+                            geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+                            scale_fill_manual(values=method_color, labels=c('SDePER'='SDePER (baseline)','GLRM'='GLRM (NO CVAE)', 'NO_PlatEffRmv'='NO PlatEffRmv')) +
+                            theme_classic() +
+                            theme(axis.text = element_text(color="black"),
+                                  axis.ticks.x = element_blank(),
+                                  axis.text.x = element_blank(),
+                                  axis.title.x = element_blank(),
+                                  legend.title = element_blank())
+                            
+}
+
+g_list[['Pearson']] = g_list[['Pearson']] + geom_hline(yintercept=0, color="red", linetype="dashed")
+
+ggpubr::ggarrange(plotlist=g_list, ncol=4, nrow=1, common.legend=TRUE, legend="bottom", align = 'hv')
+```
+
+## Addtional boxplot for FNR
+
+```{r, fig.width=4, fig.height=3}
+ggplot(plot_df, aes(x=Method, y=FNR, fill=Method)) +
+  geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+  scale_fill_manual(values=method_color, labels=c('SDePER'='SDePER (baseline)','GLRM'='GLRM (NO CVAE)', 'NO_PlatEffRmv'='NO PlatEffRmv')) +
+  theme_classic() +
+  theme(axis.text = element_text(color="black"),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        legend.title = element_blank())
+```
+
+
