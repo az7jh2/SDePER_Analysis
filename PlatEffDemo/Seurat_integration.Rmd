@@ -1,0 +1,273 @@
+---
+title: "Integrate STARmap and reference scRNA-seq cells by Seurat"
+author: "Ningshan Li"
+date: "2024/09/07"
+output:
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+library(dplyr)
+library(ggplot2)
+library(Seurat)
+
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+
+home.dir = '/home/hill103/Documents/Spatial/PlatEffDemo'
+save_file = FALSE
+Csparse_validate="CsparseMatrix_validate" # to avoid Error in validityMethod(as(object, superClass)) : object 'Csparse_validate' not found
+
+my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
+method_color = c("SDePER"='#e6194b', "GLRM"='#f032e6', "NO_PlatEffRmv"='#808000')
+```
+
+
+
+# Summary
+
+In this R Notebook, we integrate STARmap and scRNA-seq reference cells by Seurat. 
+
+
+1.  **Inputs**:
+
+    * [`STARmap_cell_nUMI.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/STARmap_cell_nUMI.csv): raw nUMI counts of all 2,002 STARmap single cells (cells × genes).
+    * [`STARmap_cell_celltype.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_spatial/STARmap_cell_celltype.csv): cell type annotation of all 2,002 STARmap cells.
+    * `scRNA_data_full.csv`: raw nUMI counts of reference scRNA-seq data (cells × genes). Since the file size of csv file of raw nUMI matrix of all 23,178 cells and 45,768 genes is up to 2.3 GB, we do not provide this file in our repository. It's just a matrix transpose of [GSE115746_cells_exon_counts.csv.gz](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE115746&format=file&file=GSE115746%5Fcells%5Fexon%5Fcounts%2Ecsv%2Egz) in [GSE115746](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE115746) to satisty the file format requirement that rows as cells and columns as genes.
+    * [`ref_scRNA_cell_celltype.csv`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Simulation/Run_SDePER_on_simulation_data/Scenario_1/ref_scRNA_seq/ref_scRNA_cell_celltype.csv): cell type annotations for cells of the matched 12 cell types in reference scRNA-seq data.
+
+
+2.  **Outputs**:
+
+    * Figure. UMAP of STARmap and scRNA-seq reference cells after Seurat integration
+
+
+
+# Version
+
+```{r}
+version[['version.string']]
+print(sprintf('Package %s version: %s', 'Seurat', packageVersion('Seurat')))
+```
+
+
+# Read data
+
+## Spatial data
+
+### STARmap cells nUMI
+
+```{r}
+file_name = file.path(home.dir, 'STARmap_cell_nUMI.csv')
+starmap_exp = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+
+print(sprintf('load data from file %s', file_name))
+print(sprintf('Total cells: %d; genes: %d', nrow(starmap_exp), ncol(starmap_exp)))
+```
+
+
+### STARmap cell type annotation
+
+```{r}
+file_name = file.path(home.dir, 'STARmap_cell_celltype.csv')
+starmap_ct = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+
+stopifnot(all(row.names(starmap_ct) == row.names(starmap_exp)))
+
+print(sprintf('load data from file %s', file_name))
+print(sprintf('annotation for %d cells', nrow(starmap_ct)))
+
+table(starmap_ct$celltype)
+```
+
+
+### Build new `Seurat` with only raw counts and cell type annotations
+
+NOTE: disable filtering.
+
+```{r}
+obj_starmap = CreateSeuratObject(counts = t(as.matrix(starmap_exp)), min.cells = 0, min.features = 0, meta.data = starmap_ct)
+print(sprintf('Total cells: %d; genes: %d', ncol(obj_starmap), nrow(obj_starmap)))
+
+obj_starmap[['dataset']] = 'Spatial'
+```
+
+
+Perform normalization.
+
+```{r}
+obj_starmap = NormalizeData(obj_starmap, verbose = FALSE)
+```
+
+
+
+## reference scRNA-seq data
+
+### scRNA-seq nUMI
+
+```{r}
+file_name = file.path(home.dir, 'scRNA_data_full.csv')
+ref_exp = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+
+print(sprintf('load data from file %s', file_name))
+print(sprintf('Total cells: %d; genes: %d', nrow(ref_exp), ncol(ref_exp)))
+```
+
+
+### scRNA-seq cell type annotation
+
+```{r}
+file_name = file.path(home.dir, 'ref_scRNA_cell_celltype.csv')
+ref_ct = read.csv(file_name, row.names = 1, check.names = F, stringsAsFactors = F)
+
+print(sprintf('load data from file %s', file_name))
+print(sprintf('annotation for %d cells', nrow(ref_ct)))
+
+table(ref_ct$celltype)
+```
+
+Remove cells without cell type annotation.
+
+```{r}
+ref_exp = ref_exp[row.names(ref_ct), ]
+print(sprintf('remain %d cells', nrow(ref_exp)))
+
+stopifnot(all(row.names(ref_ct) == row.names(ref_exp)))
+```
+
+
+### Build new `Seurat` with only raw counts and cell type annotations
+
+NOTE: filtering on genes.
+
+```{r}
+obj_ref = CreateSeuratObject(counts = t(as.matrix(ref_exp)), min.cells = 3, min.features = 0, meta.data = ref_ct)
+print(sprintf('Total cells: %d; genes: %d', ncol(obj_ref), nrow(obj_ref)))
+
+obj_ref[['dataset']] = 'Reference'
+```
+
+
+Perform normalization.
+
+```{r}
+obj_ref = NormalizeData(obj_ref, verbose = FALSE)
+```
+
+
+
+# Prepare for integration
+
+Keep overlapped genes in both Spatial and Reference datasets.
+
+```{r}
+overlap_gene = intersect(row.names(obj_starmap), row.names(obj_ref))
+print(sprintf('keep %d overlapped genes', length(overlap_gene)))
+
+obj_starmap = subset(obj_starmap, features = overlap_gene)
+print(sprintf('finall keep Spatial cells: %d; genes: %d', ncol(obj_starmap), nrow(obj_starmap)))
+
+obj_ref = subset(obj_ref, features = overlap_gene)
+print(sprintf('finall keep Reference scRNA-seq cells: %d; genes: %d', ncol(obj_ref), nrow(obj_ref)))
+```
+
+
+We use default **30** PCs for integration. 
+
+```{r}
+pc_num = 30
+```
+
+
+# Standard `Seurat` integration workflow
+
+* Default [`FindIntegrationAnchors`](https://satijalab.org/seurat/reference/findintegrationanchors) settings in Seurat 4.0
+  * `dims = 1:30`
+  * `k.anchor = 5`
+  * `k.filter = 200`
+  * `k.score = 30`
+* NOTE here we use 2,000 features.
+
+```{r}
+# create a list of Seurat objects
+obj_list = list()
+obj_list[['Spatial']] = obj_starmap
+obj_list[['Reference']] = obj_ref
+
+obj_list = lapply(X=obj_list, FUN=function(x) {
+  x = FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+})
+
+# select features that are repeatedly variable across datasets for integration (NEW in Seurat 4.0)
+features = SelectIntegrationFeatures(object.list = obj_list)
+
+# increase the global maxSize
+options(future.globals.maxSize = 4194304000)
+
+# k.filter default 200
+obj_anchors = FindIntegrationAnchors(obj_list, k.filter = 200, dims = 1:pc_num, anchor.features = features, verbose = F)
+
+# this command creates an "integrated" data assay
+obj_combined = IntegrateData(anchorset = obj_anchors, dims = 1:pc_num, verbose = F)
+```
+
+
+
+# Postprocessing
+
+Extract normalized gene expressions after integration, which is equivalent to `log1p(10000*nUMI/sequencing depth of cell)`.
+
+To be consistent with SDePER which use non-log normalized gene expression values, we applied an `expm1` transformation on Seurat integrated normalized gene expressions, followed by divided by 10,000. 
+
+NOTE: **negative** Seurat normalized gene expression values exist! We set them as 0.
+
+```{r}
+DefaultAssay(obj_combined) = "integrated"
+
+norm_exp = expm1(obj_combined@assays$integrated@data) / 10000
+
+print(sprintf('%d (%.2f%%) negative expressions; set them to 0', sum(norm_exp<0), sum(norm_exp<0)/(nrow(norm_exp)*ncol(norm_exp))*100))
+
+norm_exp[norm_exp<0] = 0
+
+print(sprintf('get expression of %d cells and %d genes', ncol(norm_exp), nrow(norm_exp)))
+```
+
+
+
+# Draw UMAP
+
+```{r}
+umap_embed = umap::umap(t(as.matrix(norm_exp)))
+print(umap_embed)
+```
+
+
+```{r, fig.width=10, fig.height=5}
+plot_df = umap_embed$layout
+plot_df = merge(plot_df, obj_combined@meta.data[, c('celltype', 'dataset')], by = 'row.names')
+
+ggplot(plot_df, aes(x=V1, y=V2, color=celltype)) +
+  geom_point(shape=20, size=0.5) +
+  theme_classic() +
+  scale_color_manual(values = my_color) +
+  facet_grid(~dataset) +
+  theme(legend.title = element_blank(), strip.text = element_text(size=14)) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  labs(x = 'UMAP1', y = 'UMAP2')
+```
+
+
