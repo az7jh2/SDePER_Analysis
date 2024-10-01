@@ -35,7 +35,7 @@ We create a **simulated** spatial transcriptomics dataset using **coarse-grainin
 
 This **single-cell resolution** spatial transcriptomics dataset contains two independent experiments on **mouse primary visual cortex**, in total provides the expression profiles of **1,020 genes** in **2,137 cells** across **16 cell types**.
 
-Original publication see [here](https://www.science.org/doi/10.1126/science.aat5691), and raw data can be downloaded from https://www.starmapresources.com/data/.
+Original publication see [here](https://www.science.org/doi/10.1126/science.aat5691), and raw data can be downloaded from https://www.starmapresources.com/data/. NOTE: Since the original download links for the raw data have expired, we have provided a copy in our GitHub repository under the folder [Generate_simulation_data](Generate_simulation_data).
 
 We download both experiments `20180410-BY3_1kgenes` and `20180505_BY3_1kgenes`, and extract **2,002 cells** across **12 cell types** (see table in reference scRNA-seq section) which overlaps with the paired reference scRNA-seq dataset. **No further filtering on genes or cells** is performed. The physical locations and gene expression profiles (raw nUMIs) of the selected cells are manually curated and saved into a R object [CoarseGrain_Data.rds](Generate_simulation_data/CoarseGrain_Data.rds).
 

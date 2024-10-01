@@ -12,7 +12,7 @@ This folder holds Notebooks of data preprocessing, analysis Notebooks and result
 | Preprocess for cell type deconvolution    | [MOB_preprocess.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/0a429908645a665c1f9d345df013d5b9fcde20b3/RealData/MOB/MOB_preprocess.nb.html) | [Melanoma_preprocess.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/0a429908645a665c1f9d345df013d5b9fcde20b3/RealData/Melanoma/Melanoma_preprocess.nb.html) | [Breast_Cancer_preprocess.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/0a429908645a665c1f9d345df013d5b9fcde20b3/RealData/Breast_Cancer/Breast_Cancer_preprocess.nb.html) | [IPF_preprocess.nb.html](https://rawcdn.githack.com/az7jh2/SDePER_Analysis/c9b4698ecd9d0b1b0d2794df963127efe01ec231/RealData/IPF/IPF_preprocess.nb.html) |
 | run SDePER on this real dataset           | [run_SDePER_on_MOB_data.ipynb](MOB/run_SDePER_on_MOB_data.ipynb) | [run_SDePER_on_Melanoma_data.ipynb](Melanoma/run_SDePER_on_Melanoma_data.ipynb) | [run_SDePER_on_Breast_Cancer_data.ipynb](Breast_Cancer/run_SDePER_on_Breast_Cancer_data.ipynb) | [run_SDePER_on_IPF_data.ipynb](IPF/run_SDePER_on_IPF_data.ipynb) |
 
-## Spot size of spatial transcriptomic technologies
+## Spot size of spatial transcriptomic technologies in read data analysis
 
 ### Spatial Transcriptomics v1.0
 
