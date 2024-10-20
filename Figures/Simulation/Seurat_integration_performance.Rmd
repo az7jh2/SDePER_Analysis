@@ -1,0 +1,291 @@
+---
+title: "Evaluate the cell type deconvolution performance of Seurat integration"
+author: "Ningshan Li"
+date: "2024/09/11"
+output: 
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, results='hold', fig.width = 7, fig.height = 5, dpi = 300)
+
+
+# use ggpubr package (http://www.sthda.com/english/articles/24-ggpubr-publication-ready-plots/81-ggplot2-easy-way-to-mix-multiple-graphs-on-the-same-page/)
+library(dplyr)
+library(ggplot2)
+
+
+`%notin%` = Negate(`%in%`)
+
+set.seed(1)
+
+
+home.dir = '/home/hill103/Documents/Spatial/Figures/Simulation'
+save_file = FALSE
+
+my_color = c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
+method_color = c("SDePER"='#E6194B', "GLRM"='#F032E6', "RCTD"='#46F0F0', "SpatialDWLS"='#3CB44B', "cell2location"='#FFE119',"SONAR"='#9A6324', "SPOTlight"='#4363D8', "CARD"='#F58231', "DestVI"='#911EB4', "Seurat+GLRM"='#808080')
+method_order = names(method_color)
+```
+
+
+# Summary
+
+This R Notebook generates boxplots of performance to evaluate the cell type deconvolution performance of **Seurat integration** (version 4.3) + GLRM modeling.
+
+1. **Inputs**:
+
+  * [`simulation_all_results.rds`](https://github.com/az7jh2/SDePER_Analysis/blob/main/Figures/Simulation/simulation_all_results.rds): cell type deconvolution results of all methods, as well as the ground truth in simulation analysis.
+
+2. **Outputs**:
+
+  * Table. Median RMSE, JSD, correlation and FDR in Scenario 1
+  * Figure. Boxplot of performance in Scenario 1
+
+
+# Version
+
+```{r}
+version[['version.string']]
+print(sprintf('Package %s version: %s', 'ggplot2', packageVersion('ggplot2')))
+print(sprintf('Package %s version: %s', 'ggpubr', packageVersion('ggpubr')))
+print(sprintf('Package %s version: %s', 'philentropy', packageVersion('philentropy'))) # JSD function
+```
+
+
+# Read estimated cell type proportions by all methods
+
+Here we only evaluate results of SDePER, GLRM and Seurat+GLRM.
+
+```{r}
+file_name = file.path(home.dir, 'simulation_all_results.rds')
+all_res = readRDS(file_name)
+print(sprintf('load data from %s', file_name))
+
+# check the order of spatial spots and cell types are consistent
+all_spots = row.names(all_res[['Truth']])
+all_celltypes_S1 = colnames(all_res[['Truth']])
+all_methods = c('SDePER', 'GLRM', 'Seurat+GLRM')
+```
+
+
+Check the order of spots and cell types are consistent before performance evaluation.
+
+```{r}
+for (method_name in all_methods) {
+  stopifnot(all(row.names(all_res[['S1_ext_ref']][[method_name]]) == all_spots))
+  stopifnot(all(colnames(all_res[['S1_ext_ref']][[method_name]]) == all_celltypes_S1))
+}
+```
+
+
+Check whether negative values of estimated cell type proportions exist, as negative values may cause error in JSD calculation and got `NaN`. Replace them as 0.
+
+```{r}
+for (method_name in all_methods) {
+  tmp_df = all_res[['S1_ext_ref']][[method_name]]
+  for (i in 1:nrow(tmp_df)) {
+    for (j in 1:ncol(tmp_df)) {
+      if (tmp_df[i, j] < 0) {
+        print(sprintf('%s: %s result: row %d (%s) column %d (%s) has negative value %g', 'S1_ext_ref', method_name, i, row.names(tmp_df)[i], j, colnames(tmp_df)[j], tmp_df[i, j]))
+        # replace them with 0
+        all_res[['S1_ext_ref']][[method_name]][i, j] = 0
+      }
+    }
+  }
+}
+```
+
+Check whether estimated cell type proportions of spot are ALL 0s.
+
+```{r}
+for (method_name in all_methods) {
+  tmp_df = all_res[['S1_ext_ref']][[method_name]]
+  for (i in 1:nrow(tmp_df)) {
+    if (sum(tmp_df[i, ]) == 0) {
+      print(sprintf('%s: %s result: row %d (%s) has ALL 0s', 'S1_ext_ref', method_name, i, row.names(tmp_df)[i]))
+    }
+  }
+}
+```
+
+
+
+# Evaluate performance of cell type deconvolution methods
+
+## Calculate spot-wise performance of all methods
+
+4 performance measurements:
+
+* root mean square error (**RMSE**): quantifies the overall estimation accuracy
+* Jensen-Shannon Divergence (**JSD**): assesses similarity between the estimated cell type distribution and ground-truth per spot
+* **Pearson’s correlation coefficient**: measures the similarity of estimation to ground-truth
+* false discovery rate (**FDR**): measures how many cell types were falsely predicted to be present
+
+
+```{r}
+binaryPredEvaluation = function(truth, pred) {
+  # Given an array of truth and predictions (either 0 or 1), calculate confusion matrix
+  # convert to factors to ensure get a full 2*2 confusion matrix
+  truth_factor = factor(truth, levels = c(0, 1))
+  pred_factor = factor(pred, levels = c(0, 1))
+  # Generate confusion matrix
+  conf_matrix = table(Actual = truth_factor, Predicted = pred_factor)
+  # Extract elements of the confusion matrix
+  TP = conf_matrix[2, 2]
+  FP = conf_matrix[1, 2]
+  FN = conf_matrix[2, 1]
+  TN = conf_matrix[1, 1]
+  # Calculate FDR (False Discovery Rate)
+  FDR = FP / (TP + FP)
+  # Calculate FNR (False Negative Rate)
+  FNR = FN / (TP + FN)
+  return(c(FDR, FNR))
+}
+
+calcPerformance = function(truth, pred) {
+  # calculate RMSE, JSD, correlation and FDR for each row
+  # inputs are matrix with rows as spots and columns as cell types, order has been checked to be consistent
+  stopifnot(all(row.names(truth) == row.names(pred)))
+  stopifnot(all(colnames(truth) == colnames(pred)))
+  
+  # binary cell type proportions (0:absent; 1:present)
+  truth_binary = truth != 0
+  pred_binary = pred != 0
+  # in-place conversion from bool to 0/1 while keeping dimensions, row names and column names, as `as.numeric()` will "flattern" the original matrix
+  truth_binary[] = as.numeric(truth_binary)
+  pred_binary[] = as.numeric(pred_binary)
+  
+  perform_df = data.frame(matrix(ncol=5, nrow=0))
+  colnames(perform_df) = c('RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
+  
+  for (i in 1:nrow(truth)) {
+    RMSE = sqrt(mean((truth[i,] - pred[i,]) ^ 2))
+    if (sum(pred[i,])>0 & sum(truth[i,])>0) {
+      JSD = philentropy::JSD(rbind(truth[i,], pred[i,]), unit = 'log2', est.prob = 'empirical')
+    } else {
+      JSD = 1
+    }
+    Pearson = cor.test(truth[i,], pred[i,])$estimate
+    tmp = binaryPredEvaluation(truth_binary[i,], pred_binary[i,])
+    FDR = tmp[1]
+    FNR = tmp[2]
+    
+    perform_df[nrow(perform_df)+1, ] = c(RMSE, JSD, Pearson, FDR, FNR)
+  }
+  
+  # also record spot names
+  stopifnot(nrow(perform_df) == nrow(truth))
+  perform_df['Spot'] = row.names(truth)
+  
+  return(perform_df)
+}
+
+
+all_perform = list()
+
+all_perform[['S1_ext_ref']] = list()
+
+for (method_name in all_methods) {
+  all_perform[['S1_ext_ref']][[method_name]] = calcPerformance(as.matrix(all_res[['Truth']]), as.matrix(all_res[['S1_ext_ref']][[method_name]]))
+}
+```
+
+
+## Summary spot-wise performance into method-wise
+
+Including Table. Median RMSE, JSD, correlation and FDR in Scenario 1.
+
+```{r}
+perform_raw_df = data.frame(matrix(ncol=9, nrow=0))
+colnames(perform_raw_df) = c('Scenario', 'Method', 'Reference', 'Spot', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')
+
+# calculate median performance across all spatial spots for all methods
+perform_median_df = data.frame(matrix(ncol=8, nrow=0))
+colnames(perform_median_df) = c('Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')
+
+this_scenario = 'Scenario 1'
+this_ref = 'External'
+ 
+for (method_name in all_methods) {
+  tmp_df = all_perform[['S1_ext_ref']][[method_name]]
+  tmp_df['Scenario'] = this_scenario
+  tmp_df['Method'] = method_name
+  tmp_df['Reference'] = this_ref
+  
+  perform_raw_df = rbind(perform_raw_df, tmp_df[, c('Scenario', 'Method', 'Reference', 'RMSE', 'JSD', 'Pearson', 'FDR', 'FNR')])
+  
+  perform_median_df[nrow(perform_median_df)+1, ] = c(this_scenario, method_name, this_ref,
+                                                     round(median(tmp_df$RMSE), 3),
+                                                     round(median(tmp_df$JSD), 3),
+                                                     round(median(tmp_df$Pearson), 3),
+                                                     round(median(tmp_df$FDR), 3),
+                                                     round(median(tmp_df$FNR), 3))
+}
+
+# set method column as factors
+perform_raw_df['Method'] = factor(perform_raw_df$Method, levels = all_methods)
+
+perform_median_df[, c('Scenario', 'Method', 'Reference', 'median_RMSE', 'median_JSD', 'median_Pearson', 'median_FDR', 'median_FNR')]
+```
+
+
+
+# Draw figures
+
+## Figure. Boxplot of performance in Scenario 1
+
+```{r, fig.width=4, fig.height=6}
+if (save_file) {
+  file_name = file.path(home.dir, 'FigX_S1_performance.pdf')
+  cairo_pdf(file_name, height=6, width=4, onefile=T)
+  print(sprintf('figures saved in file %s', file_name))
+}
+
+plot_df = perform_raw_df %>%
+  filter(Scenario=='Scenario 1')
+
+g_list = list()
+
+for (perform_ind in c('RMSE', 'Pearson', 'JSD', 'FDR')) {
+  g_list[[perform_ind]] = ggplot(plot_df, aes(x=Method, y=.data[[perform_ind]], fill=Method)) +
+                            geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+                            scale_fill_manual(values=method_color) +
+                            theme_classic() +
+                            theme(strip.text = element_text(size=10),
+                                  axis.text = element_text(color="black"),
+                                  axis.ticks.x = element_blank(),
+                                  axis.text.x = element_blank(),
+                                  axis.title.x = element_blank(),
+                                  legend.title = element_blank())
+}
+
+g_list[['Pearson']] = g_list[['Pearson']] + geom_hline(yintercept=0, color="red", linetype="dashed")
+
+ggpubr::ggarrange(plotlist=g_list, ncol=2, nrow=2, common.legend=TRUE, legend="right")
+```
+
+
+## Addtional boxplot for FNR
+
+```{r, fig.width=3, fig.height=3}
+ggplot(plot_df, aes(x=Method, y=FNR, fill=Method)) +
+  geom_boxplot(position=position_dodge(), outlier.shape=NA) +
+  scale_fill_manual(values=method_color) +
+  theme_classic() +
+  theme(strip.text = element_text(size=10),
+        axis.text = element_text(color="black"),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        legend.title = element_blank())
+```
+
+
